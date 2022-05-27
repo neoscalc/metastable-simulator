@@ -295,34 +295,34 @@ for iStep = 1:size(Job.PT,1)
 
         % Recalculate the G of the metastable system one-by-one...
 
-%         GminMeta = zeros(size(LastStable.Minerals));
-%         GminMeta2 = zeros(size(LastStable.Minerals));
-%         for i = 1:length(LastStable.Minerals)-1
-% 
-%             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-%             
-%             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-%             dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
-% 
-%             disp(LastStable.Minerals{i})
-%             
-%             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-% 
-%             [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-% 
-%             GminMeta(i) = WorkVariMod_META.Gsys;
-%             GminMeta2(i) = WorkVariMod_META.Gsys2;
-% 
-%             %WorkVariMod_META.Names4Moles;
-%             %WorkVariMod_META.MOLES;
-%             
-%             if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 10
-%                 disp('Oups, G metastable not correctly estimated, check details');
-%                 keyboard
-%             end
-%         end
-%         
-%         GsytMeta(iStep) = sum(GminMeta);
+        GminMeta = zeros(size(LastStable.Minerals));
+        GminMeta2 = zeros(size(LastStable.Minerals));
+        for i = 1:length(LastStable.Minerals)-1
+
+            TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+            
+            dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+            dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
+
+            disp(LastStable.Minerals{i})
+            
+            [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+            [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+            GminMeta(i) = WorkVariMod_META.Gsys;
+            GminMeta2(i) = WorkVariMod_META.Gsys2;
+
+            %WorkVariMod_META.Names4Moles;
+            %WorkVariMod_META.MOLES;
+            
+            if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 10
+                disp('Oups, G metastable not correctly estimated, check details');
+                keyboard
+            end
+        end
+        
+        GsytMeta(iStep) = sum(GminMeta);
 
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
