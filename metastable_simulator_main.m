@@ -38,7 +38,7 @@ setenv('GFORTRAN_STDOUT_UNIT', '6')
 setenv('GFORTRAN_STDERR_UNIT', '0')
 % --
 
-diary LastResults/output.txt
+% diary LastResults/output.txt
 
 if isempty(varargin)
     InputFile = 'MetastabilitySimulatorIN.txt';
@@ -63,6 +63,8 @@ LastStable.Elem = {};
 LastStable.MOLES = [];
 LastStable.Gsys = [];
 
+El4ChemPot = '';
+DeltaChemPot = [];
 
 for iStep = 1:size(Job.PT,1)
     
@@ -70,13 +72,45 @@ for iStep = 1:size(Job.PT,1)
 
     % (1) Equilibrium calculation (minimum G)
     dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',Job.Bulk,'   * '] ),'delimiter','');
-
     dlmwrite('XBIN',char(Job.Database,'no'),'delimiter','');
 
     [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-    
     [WorkVariMod] = Core_ReadResTheriak(yum,'');
     
+    % (2) Pattison Method 3
+    dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',Job.Bulk,'   * '] ),'delimiter','');
+    dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
+    
+    [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+    [WorkVariMod_Shit] = Core_ReadResTheriak(yum,'');
+    
+    GsytMethod3(iStep) = WorkVariMod_Shit.Gsys;              % in J
+    NbMolesSyst(iStep) = WorkVariMod.NbMolesSyst;
+
+    DGexcluded(iStep) = WorkVariMod_Shit.DGexcluded;
+    NbMolesSyst_Shit(iStep) = WorkVariMod_Shit.NbMolesSyst;
+    
+    % Chemical components
+    ChemPot1 = [];
+    ChemPot2 = [];
+    for i = 1:length(WorkVariMod.ChemComp)
+        WhereChemPot = find(ismember(El4ChemPot,WorkVariMod.ChemComp{i}));
+        if isempty(WhereChemPot)
+            El4ChemPot{end+1} = WorkVariMod.ChemComp{i};
+            WhereChemPot = length(El4ChemPot);
+        end
+        ChemPot1(WhereChemPot) = WorkVariMod.ChemPot(i);
+    end
+    for i = 1:length(WorkVariMod_Shit.ChemComp)
+        WhereChemPot = find(ismember(El4ChemPot,WorkVariMod_Shit.ChemComp{i}));
+        if isempty(WhereChemPot)
+            El4ChemPot{end+1} = WorkVariMod_Shit.ChemComp{i};
+            WhereChemPot = length(El4ChemPot);
+        end
+        ChemPot2(WhereChemPot) = WorkVariMod_Shit.ChemPot(i);
+    end
+    DeltaChemPot(end+1,1:length(ChemPot2)) = ChemPot1-ChemPot2;
+
     if isequal(Job.PT(iStep,3),1)
         LastStable.ID = iStep;
         LastStable.Minerals = WorkVariMod.Names4Moles;
@@ -87,52 +121,412 @@ for iStep = 1:size(Job.PT,1)
         GsytMeta(iStep) = WorkVariMod.Gsys;
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
+
+        % temporary
+        i = 1;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('PLC1.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_PLC1(iStep) = WorkVariMod_META.Gsys;
+        EM_PLC1{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_PLC1(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+        i = 2;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('WM02V.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_WM02V(iStep) = WorkVariMod_META.Gsys;
+        EM_WM02V{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_WM02V(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+        i = 3;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('BI05.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_BI05(iStep) = WorkVariMod_META.Gsys;
+        EM_BI05{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_BI05(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+        i = 4;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('CHL.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_CHL(iStep) = WorkVariMod_META.Gsys;
+        EM_CHL{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_CHL(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+        
+        i = 5;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('ILMTERN.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_ILMTERN(iStep) = WorkVariMod_META.Gsys;
+        EM_ILMTERN{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_ILMTERN(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+        
+        i = 6;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('H2O.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_H2O(iStep) = WorkVariMod_META.Gsys;
+        %EM_H2O{iStep,:} = WorkVariMod_META.SS(1).EM;
+        %EMprop_H2O(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+        
+        i = 7;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('q.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_q(iStep) = WorkVariMod_META.Gsys;
+        %EM_q{iStep,:} = WorkVariMod_META.SS(1).EM;
+        %EMprop_q(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+
     else
         
-        % Recalculate the G of the metastable system one-by-one...
-        GminMeta = zeros(size(LastStable.Minerals));
-        for i = 1:length(LastStable.Minerals)-1
+        i = 1;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('PLC1.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
 
-            TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-            
-            dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-            dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
 
-            [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-            [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-            GminMeta(i) = WorkVariMod_META.Gsys;
-        end
+        G_PLC1(iStep) = WorkVariMod_META.Gsys;
+        EM_PLC1{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_PLC1(iStep,:) = WorkVariMod_META.SS(1).EMprop;
         
-        GsytMeta(iStep) = sum(GminMeta);
+        i = 2;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('WM02V.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_WM02V(iStep) = WorkVariMod_META.Gsys;
+        EM_WM02V{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_WM02V(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+        i = 3;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('BI05.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_BI05(iStep) = WorkVariMod_META.Gsys;
+        EM_BI05{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_BI05(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+        i = 4;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('CHL.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_CHL(iStep) = WorkVariMod_META.Gsys;
+        EM_CHL{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_CHL(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+        
+        i = 5;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('ILMTERN.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_ILMTERN(iStep) = WorkVariMod_META.Gsys;
+        EM_ILMTERN{iStep,:} = WorkVariMod_META.SS(1).EM;
+        EMprop_ILMTERN(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+        i = 6;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('H2O.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_H2O(iStep) = WorkVariMod_META.Gsys;
+
+        i = 7;
+        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char('q.txt','no'),'delimiter','');
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+        G_q(iStep) = WorkVariMod_META.Gsys;
+        %EM_q{iStep,:} = WorkVariMod_META.SS(1).EM;
+        %EMprop_q(iStep,:) = WorkVariMod_META.SS(1).EMprop;
+
+
+        % Recalculate the G of the metastable system one-by-one...
+
+%         GminMeta = zeros(size(LastStable.Minerals));
+%         GminMeta2 = zeros(size(LastStable.Minerals));
+%         for i = 1:length(LastStable.Minerals)-1
+% 
+%             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+%             
+%             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+%             dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
+% 
+%             disp(LastStable.Minerals{i})
+%             
+%             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+% 
+%             [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+% 
+%             GminMeta(i) = WorkVariMod_META.Gsys;
+%             GminMeta2(i) = WorkVariMod_META.Gsys2;
+% 
+%             %WorkVariMod_META.Names4Moles;
+%             %WorkVariMod_META.MOLES;
+%             
+%             if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 10
+%                 disp('Oups, G metastable not correctly estimated, check details');
+%                 keyboard
+%             end
+%         end
+%         
+%         GsytMeta(iStep) = sum(GminMeta);
+
         GsysEqui(iStep) = WorkVariMod.Gsys;
+
+        %if abs(GsytMeta(iStep)-GsysEqui(iStep)) > 50
+            %keyboard
+        %end
     end
 
 end
 
+% Check solid solution
 figure, 
 
-p1 = nexttile; hold on
-plot(Job.PT(:,1),GsysEqui/1e3,'o-k')
-plot(Job.PT(:,1),GsytMeta/1e3,'o-r')
-xlabel('T (°C)')
-ylabel('G_s_y_s (kJ/mol)')
-legend({'G_s_y_s at equilibrium','Gsys metastable'})
+t = nexttile;
+plot(Job.PT(:,1),EMprop_PLC1,'.-')
+t.YLim = [0,1];
 
+nexttile
+plot(Job.PT(:,1),G_PLC1,'.-')
+title('G_PLC1')
+
+%
+t = nexttile;
+plot(Job.PT(:,1),EMprop_WM02V,'.-')
+t.YLim = [0,1];
+
+nexttile
+plot(Job.PT(:,1),G_WM02V,'.-')
+title('G_WM02V')
+
+%
+t = nexttile;
+plot(Job.PT(:,1),EMprop_BI05,'.-')
+t.YLim = [0,1];
+
+nexttile
+plot(Job.PT(:,1),G_BI05,'.-')
+title('G_BI05')
+
+%
+t = nexttile;
+plot(Job.PT(:,1),EMprop_CHL,'.-')
+t.YLim = [0,1];
+
+nexttile
+plot(Job.PT(:,1),G_CHL,'.-')
+title('G_CHL')
+
+%
+t = nexttile;
+plot(Job.PT(:,1),EMprop_ILMTERN,'.-')
+t.YLim = [0,1];
+
+nexttile
+plot(Job.PT(:,1),G_ILMTERN,'.-')
+title('G_ILMTERN')
+
+nexttile
+plot(Job.PT(:,1),G_H2O,'.-')
+title('G_H2O')
+
+nexttile
+plot(Job.PT(:,1),G_q,'.-')
+title('G_q')
+ 
+GsytMeta2 = G_PLC1 + G_WM02V + G_BI05 + G_CHL + G_ILMTERN + G_H2O + G_q;
+
+figure,
+plot(GsytMeta,GsytMeta2,'o')
+xlabel('G_s_y_s with DB + PHASE')
+ylabel('G_s_y_s with small DB')
+
+
+DeltaT = Job.PT(:,1) - Job.PT(1,1);
+
+figure, 
+
+nexttile
+plot(Job.PT(:,1),(GsytMethod3-GsysEqui)*100,'o-b')   % Achtung *100 to reproduce Dave's results
+xlabel('T (°C)')
+ylabel('A (J)')
+title('\DeltaG_s_y_s of Method 1 (Pattison)')
+
+nexttile
+plot(Job.PT(:,1),(GsytMethod3-GsysEqui)./NbMolesSyst,'o-b')
+xlabel('T (°C)')
+ylabel('A (J/mol)')
+title('\DeltaG_s_y_s of Method 1')
+
+nexttile
+plot(Job.PT(:,1),-DGexcluded,'o-k')
+xlabel('T (°C)')
+ylabel('G (J/mol)')
+title('\DeltaG_g_r_t of Method 3')
+
+nexttile
+plot(Job.PT(:,1),(-GsysEqui-GsysEqui(1))./NbMolesSyst,'o-k')
+xlabel('T (°C)')
+ylabel('G (J/mol)')
+title('\DeltaG of Method 2')
+
+nexttile
+plot(Job.PT(:,1),(GsytMeta-GsysEqui)./NbMolesSyst,'o-b')
+xlabel('T (°C)')
+ylabel('A (J/mol)')
+title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
+
+t = nexttile; hold on
+ListChemPlot = {'MGO','MNO','CAO','FEO','AL2O3','SIO2'};
+for i = 1:length(ListChemPlot)
+    Where = find(ismember(El4ChemPot,ListChemPlot{i}));
+    plot(Job.PT(:,1),DeltaChemPot(:,Where))
+end
+t.YLim = [-100,100];
+legend(ListChemPlot)
+xlabel('T (°C)')
+ylabel('\Delta\mu (J/mol)')
+
+
+keyboard
+
+
+
+
+
+figure
+plot(Job.PT(:,1),DeltaChemPot','-')
+legend(El4ChemPot)
+xlabel('T (°C)')
+ylabel('\delta\mu (J/mol)')
+
+keyboard
+
+
+
+
+figure,
 nexttile
 plot(Job.PT(:,1),GsytMeta-GsysEqui,'o-b')
 xlabel('T (°C)')
 ylabel('A (J/mol)')
+title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
 
+nexttile
+plot(Job.PT(:,1),(GsytMeta-GsysEqui)/12,'o-b')
+xlabel('T (°C)')
+ylabel('A (J / mol / 12)')
+title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
+
+nexttile
+plot(Job.PT(:,1),((GsytMeta-GsysEqui)./12)./DeltaT','o-b')
+xlabel('T (°C)')
+ylabel('A (J / mol / 12 / K)')
+title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
+
+nexttile
+plot(Job.PT(:,1),((GsytMeta-GsysEqui))./DeltaT','o-b')
+xlabel('T (°C)')
+ylabel('A (J / mol.K)')
+title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
+
+
+figure,
+nexttile
+plot(Job.PT(:,1),-DGexcluded,'o-k')
+xlabel('T (°C)')
+ylabel('pseudo-A (J)')
+title('Method 3')
+
+nexttile
+plot(Job.PT(:,1),-DGexcluded./12,'o-k')
+xlabel('T (°C)')
+ylabel('pseudo-A (J / 12)')
+title('pseudo reaction affinity (Method 3)')
+
+nexttile
+plot(Job.PT(:,1),GsytMethod3-GsysEqui,'o-b')
+xlabel('T (°C)')
+ylabel('A (J/mol)')
+title('Diff G_s_y_s of Method 3')
+
+
+
+
+
+
+figure
 nexttile
 plot(Job.PT(:,1),(GsysEqui(1)-GsysEqui)./1e3,'o-b')
 xlabel('T (°C)')
 ylabel('G (kJ/mol)')
+title('Diff G_s_y_s Method 2 (pseudo-A)')
 
+nexttile
+plot(Job.PT(:,1),(GsysEqui(1)-GsysEqui)./12,'o-b')
+xlabel('T (°C)')
+ylabel('G (kJ / mol / 12)')
+title('Diff G_s_y_s Method 2 (pseudo-A)')
 
-
-
+nexttile
+plot(Job.PT(:,1),((GsysEqui(1)-GsysEqui)./12)./DeltaT','o-b')
+xlabel('T (°C)')
+ylabel('G (kJ/mol.K / 12)')
+title('Diff G_s_y_s Method 2 (pseudo-A)')
 
 
 
@@ -180,13 +574,28 @@ TestInput = strread(OutputTheriakd,'%s','delimiter','\n');
 %OutputTheriakd
 
 % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-% (0) Gsystem from theriak
+% (0) Gsystem from theriak & Energy of Excluded phases
 % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 WhereGsystem = find(ismember(TestInput,'equilibrium assemblage:'))+7;
-
 TheStr = strread(TestInput{WhereGsystem},'%s');
-
 WorkVariMod(1).Gsys = str2num(TheStr{6});
+
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+% (0) DG of excluded phases
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+WhereGExcluded = find(ismember(TestInput,'Excluded phases              G[J/mol]       V[ccm]                              x'))+3;
+
+if ~isempty(WhereGExcluded)
+    TheStr = strread(char(TestInput(WhereGExcluded)),'%s');
+    if isequal(length(TheStr),7)
+        WorkVariMod(1).DGexcluded = str2num(TheStr{4});
+    else
+        WorkVariMod(1).DGexcluded = 0;
+    end
+else
+    WorkVariMod(1).DGexcluded = 0;
+end
+
 
 % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 % (1) Elements and test for error with the Job.Database ...
@@ -416,6 +825,7 @@ end
 
 WorkVariMod(1).Names4Moles = Names4Moles;
 WorkVariMod(1).MOLES = ASS_COMP3;
+WorkVariMod(1).NbMolesSyst = sum(ASS_COMP3(end,:));
 % ---------------------------------------------------------------
 
 WorkVariMod(1).NbPhases = length(WorkVariMod(1).Names);
@@ -548,35 +958,38 @@ end
 % (4) CHEMICAL POTENTIAL OF OXIDES
 % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-% WhereChemCo = find(ismember(TestInput,'chemical potentials of components:'))+3;
-% 
-% Temp = strread(char(TestInput(WhereChemCo)),'%s')';
-% NbComponents = str2num(Temp{end});
-% 
-% Message = char(TestInput(WhereChemCo+7));
-% 
-% if isequal(Message,'oxydes probably buffered')
-%     WeStoreChemPot = 1;
-% else
-%     WeStoreChemPot = 0;
-% end
-% 
-% WhereChemRead = find(ismember(TestInput,'component   chem.pot.'))+2;
-% 
-% for i = 1:NbComponents
-%     Temp = strread(char(TestInput(WhereChemRead+i-1)),'%s')';
-%     % Sometimes there is n components and n-1 chemical potential displayed
-%     if ~isempty(Temp)
-%         Oxide = char(Temp{1});
-%         Oxide = upper(Oxide(2:end-1));
-%         WorkVariMod.ChemComp{i} = Oxide;
-%         if WeStoreChemPot
-%             WorkVariMod.ChemPot(i) = str2num(Temp{2});
-%         else
-%             WorkVariMod.ChemPot(i) = NaN;
-%         end
-%     end
-% end
+WhereChemCo = find(ismember(TestInput,'chemical potentials of components:'))+3;
+
+Temp = strread(char(TestInput(WhereChemCo)),'%s')';
+NbComponents = str2num(Temp{end});
+
+Message = char(TestInput(WhereChemCo+7));
+
+if isequal(Message,'oxydes probably buffered')
+    WeStoreChemPot = 1;
+else
+    WeStoreChemPot = 0;
+end
+
+WhereChemRead = find(ismember(TestInput,'component   chem.pot.'))+2;
+
+for i = 1:NbComponents
+    Temp = strread(char(TestInput(WhereChemRead+i-1)),'%s')';
+    if isempty(char(Temp))
+        break
+    end
+    % Sometimes there is n components and n-1 chemical potential displayed
+    if ~isempty(Temp)
+        Oxide = char(Temp{1});
+        Oxide = upper(Oxide(2:end-1));
+        WorkVariMod.ChemComp{i} = Oxide;
+        if WeStoreChemPot
+            WorkVariMod.ChemPot(i) = str2num(Temp{2});
+        else
+            WorkVariMod.ChemPot(i) = NaN;
+        end
+    end
+end
 
 
 % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -609,6 +1022,33 @@ while 1
 end
 
 WorkVariMod(1).Gsys2 = sum(WorkVariMod(1).ChemPotEl.*WorkVariMod(1).MOLES(end,:));
+
+
+
+% TEMP SS
+
+% EM fractions
+WhereSS = find(ismember(TestInput,'exit THERIAK'))-1;
+Compt = 1;
+while 1
+    Temp = strread(char(TestInput(WhereSS-Compt)),'%s')';
+    if isempty(Temp)
+        break
+    end
+    iseven = rem(length(Temp), 2) == 0;
+    if ~iseven
+        % solution model
+        WorkVariMod.SS(Compt).Name = Temp{1};
+        ComptEM = 0;
+        for i = 2:2:length(Temp)
+            ComptEM = ComptEM + 1;
+            WorkVariMod.SS(Compt).EM{ComptEM} = Temp{i};
+            WorkVariMod.SS(Compt).EMprop(ComptEM) = str2num(Temp{i+1});
+        end
+    end
+    Compt = Compt + 1;
+end
+
 
 end
 
