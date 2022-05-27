@@ -8,7 +8,7 @@ function [] = metastable_simulator_main(varargin)
 close all
 clc
 
-version = '1.0';
+version = '1.1';
 
 % -- Save results in a separate folder (LastResults)
 if isequal(exist([cd,'/LastResults']),7)
@@ -121,178 +121,8 @@ for iStep = 1:size(Job.PT,1)
         GsytMeta(iStep) = WorkVariMod.Gsys;
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
-
-        % temporary
-        i = 1;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('PLC1.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_PLC1(iStep) = WorkVariMod_META.Gsys;
-        EM_PLC1{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_PLC1(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-        i = 2;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('WM02V.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_WM02V(iStep) = WorkVariMod_META.Gsys;
-        EM_WM02V{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_WM02V(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-        i = 3;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('BI05.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_BI05(iStep) = WorkVariMod_META.Gsys;
-        EM_BI05{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_BI05(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-        i = 4;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('CHL.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_CHL(iStep) = WorkVariMod_META.Gsys;
-        EM_CHL{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_CHL(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-        
-        i = 5;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('ILMTERN.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_ILMTERN(iStep) = WorkVariMod_META.Gsys;
-        EM_ILMTERN{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_ILMTERN(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-        
-        i = 6;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('H2O.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_H2O(iStep) = WorkVariMod_META.Gsys;
-        %EM_H2O{iStep,:} = WorkVariMod_META.SS(1).EM;
-        %EMprop_H2O(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-        
-        i = 7;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('q.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_q(iStep) = WorkVariMod_META.Gsys;
-        %EM_q{iStep,:} = WorkVariMod_META.SS(1).EM;
-        %EMprop_q(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-
     else
         
-        i = 1;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('PLC1.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_PLC1(iStep) = WorkVariMod_META.Gsys;
-        EM_PLC1{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_PLC1(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-        
-        i = 2;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('WM02V.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_WM02V(iStep) = WorkVariMod_META.Gsys;
-        EM_WM02V{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_WM02V(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-        i = 3;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('BI05.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_BI05(iStep) = WorkVariMod_META.Gsys;
-        EM_BI05{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_BI05(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-        i = 4;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('CHL.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_CHL(iStep) = WorkVariMod_META.Gsys;
-        EM_CHL{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_CHL(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-        
-        i = 5;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('ILMTERN.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_ILMTERN(iStep) = WorkVariMod_META.Gsys;
-        EM_ILMTERN{iStep,:} = WorkVariMod_META.SS(1).EM;
-        EMprop_ILMTERN(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-        i = 6;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('H2O.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_H2O(iStep) = WorkVariMod_META.Gsys;
-
-        i = 7;
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char('q.txt','no'),'delimiter','');
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
-        G_q(iStep) = WorkVariMod_META.Gsys;
-        %EM_q{iStep,:} = WorkVariMod_META.SS(1).EM;
-        %EMprop_q(iStep,:) = WorkVariMod_META.SS(1).EMprop;
-
-
         % Recalculate the G of the metastable system one-by-one...
 
         GminMeta = zeros(size(LastStable.Minerals));
@@ -333,84 +163,29 @@ for iStep = 1:size(Job.PT,1)
 
 end
 
-% Check solid solution
-figure, 
-
-t = nexttile;
-plot(Job.PT(:,1),EMprop_PLC1,'.-')
-t.YLim = [0,1];
-
-nexttile
-plot(Job.PT(:,1),G_PLC1,'.-')
-title('G_PLC1')
-
-%
-t = nexttile;
-plot(Job.PT(:,1),EMprop_WM02V,'.-')
-t.YLim = [0,1];
-
-nexttile
-plot(Job.PT(:,1),G_WM02V,'.-')
-title('G_WM02V')
-
-%
-t = nexttile;
-plot(Job.PT(:,1),EMprop_BI05,'.-')
-t.YLim = [0,1];
-
-nexttile
-plot(Job.PT(:,1),G_BI05,'.-')
-title('G_BI05')
-
-%
-t = nexttile;
-plot(Job.PT(:,1),EMprop_CHL,'.-')
-t.YLim = [0,1];
-
-nexttile
-plot(Job.PT(:,1),G_CHL,'.-')
-title('G_CHL')
-
-%
-t = nexttile;
-plot(Job.PT(:,1),EMprop_ILMTERN,'.-')
-t.YLim = [0,1];
-
-nexttile
-plot(Job.PT(:,1),G_ILMTERN,'.-')
-title('G_ILMTERN')
-
-nexttile
-plot(Job.PT(:,1),G_H2O,'.-')
-title('G_H2O')
-
-nexttile
-plot(Job.PT(:,1),G_q,'.-')
-title('G_q')
- 
-GsytMeta2 = G_PLC1 + G_WM02V + G_BI05 + G_CHL + G_ILMTERN + G_H2O + G_q;
-
-figure,
-plot(GsytMeta,GsytMeta2,'o')
-xlabel('G_s_y_s with DB + PHASE')
-ylabel('G_s_y_s with small DB')
-
-
 DeltaT = Job.PT(:,1) - Job.PT(1,1);
 
 figure, 
 
-nexttile
-plot(Job.PT(:,1),(GsytMethod3-GsysEqui)*100,'o-b')   % Achtung *100 to reproduce Dave's results
-xlabel('T (°C)')
-ylabel('A (J)')
-title('\DeltaG_s_y_s of Method 1 (Pattison)')
+% nexttile
+% plot(Job.PT(:,1),(GsytMethod3-GsysEqui)*100,'o-b')   % Achtung *100 to reproduce Dave's results
+% xlabel('T (°C)')
+% ylabel('A (J)')
+% title('\DeltaG_s_y_s of Method 1 (Pattison)')
+
+DGsys = (GsytMethod3-GsysEqui)./NbMolesSyst;
 
 nexttile
-plot(Job.PT(:,1),(GsytMethod3-GsysEqui)./NbMolesSyst,'o-b')
+plot(Job.PT(:,1),DGsys,'o-b')
 xlabel('T (°C)')
 ylabel('A (J/mol)')
 title('\DeltaG_s_y_s of Method 1')
+
+nexttile
+plot(Job.PT(:,1),[0,diff(DGsys)],'o-b')
+xlabel('T (°C)')
+ylabel('A (J/mol)')
+title('First derivative of \DeltaG_s_y_s')
 
 nexttile
 plot(Job.PT(:,1),-DGexcluded,'o-k')
@@ -437,6 +212,7 @@ for i = 1:length(ListChemPlot)
     plot(Job.PT(:,1),DeltaChemPot(:,Where))
 end
 t.YLim = [-100,100];
+t.Box = 'on';
 legend(ListChemPlot)
 xlabel('T (°C)')
 ylabel('\Delta\mu (J/mol)')
