@@ -8,7 +8,7 @@ function [] = metastable_simulator_main(varargin)
 close all
 clc
 
-version = '1.1';
+version = '1.2';
 
 % -- Save results in a separate folder (LastResults)
 if isequal(exist([cd,'/LastResults']),7)
@@ -66,6 +66,27 @@ LastStable.Gsys = [];
 El4ChemPot = '';
 DeltaChemPot = [];
 
+% PL 04.07.2022:
+ChemMineral.Equi.MinNames = '';
+ChemMineral.Equi.ElNames = '';
+ChemMineral.Equi.Min(1).Comp = [];
+ChemMineral.MetaPartial.MinNames = '';
+ChemMineral.MetaPartial.ElNames = '';
+ChemMineral.MetaPartial.Min(1).Comp = [];
+ChemMineral.Meta.MinNames = '';
+ChemMineral.Meta.ElNames = '';
+ChemMineral.Meta.Min(1).Comp = [];
+
+EMF.Equi.SSNames = {};
+EMF.Equi.Data(1).EM = {};
+EMF.Equi.Data(1).EMprop = [];
+EMF.MetaPartial.SSNames = {};
+EMF.MetaPartial.Data(1).EM = {};
+EMF.MetaPartial.Data(1).EMprop = [];
+EMF.Meta.SSNames = {};
+EMF.Meta.Data(1).EM = {};
+EMF.Meta.Data(1).EMprop = [];
+
 for iStep = 1:size(Job.PT,1)
     
     disp(['Calculating step #',num2str(iStep),'/',num2str(size(Job.PT,1))])
@@ -76,6 +97,9 @@ for iStep = 1:size(Job.PT,1)
 
     [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
     [WorkVariMod] = Core_ReadResTheriak(yum,'');
+    
+    ChemMineral = BackupMinComp(ChemMineral,WorkVariMod,iStep,'Equi');
+    EMF = BackupEMF(EMF,WorkVariMod,iStep,'Equi');
     
     % (2) Pattison Method 3
     dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',Job.Bulk,'   * '] ),'delimiter','');
@@ -89,6 +113,11 @@ for iStep = 1:size(Job.PT,1)
 
     DGexcluded(iStep) = WorkVariMod_Shit.DGexcluded;
     NbMolesSyst_Shit(iStep) = WorkVariMod_Shit.NbMolesSyst;
+    
+    WorkVariMod_Shit.Names4Moles
+    
+    ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_Shit,iStep,'MetaPartial');
+    EMF = BackupEMF(EMF,WorkVariMod,iStep,'MetaPartial');
     
     % Chemical components
     ChemPot1 = [];
@@ -139,7 +168,10 @@ for iStep = 1:size(Job.PT,1)
             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
 
             [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-
+            
+            ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,'Meta');
+            EMF = BackupEMF(EMF,WorkVariMod,iStep,'Meta');
+            
             GminMeta(i) = WorkVariMod_META.Gsys;
             GminMeta2(i) = WorkVariMod_META.Gsys2;
 
@@ -156,6 +188,7 @@ for iStep = 1:size(Job.PT,1)
 
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
+        1
         %if abs(GsytMeta(iStep)-GsysEqui(iStep)) > 50
             %keyboard
         %end
@@ -164,8 +197,10 @@ for iStep = 1:size(Job.PT,1)
 end
 
 DeltaT = Job.PT(:,1) - Job.PT(1,1);
+dT = Job.PT(2:end,1)'-Job.PT(1:end-1,1)';
 
-figure, 
+figure
+tiledlayout(4,2)
 
 % nexttile
 % plot(Job.PT(:,1),(GsytMethod3-GsysEqui)*100,'o-b')   % Achtung *100 to reproduce Dave's results
@@ -179,39 +214,59 @@ nexttile
 plot(Job.PT(:,1),DGsys,'o-b')
 xlabel('T (°C)')
 ylabel('A (J/mol)')
-title('\DeltaG_s_y_s of Method 1')
+title('-\DeltaG_s_y_s of Method 1 (J/mol)')
 
 nexttile
-plot(Job.PT(:,1),[0,diff(DGsys)],'o-b')
+plot(Job.PT(:,1),[0,diff(DGsys)./dT],'o-b')
+xlabel('T (°C)')
+ylabel('A (J.mol^-^1.°C^-^1)')
+title('First derivative of -\DeltaG_s_y_s')
+
+
+Affinity = (GsytMeta-GsysEqui)./NbMolesSyst;
+
+nexttile
+plot(Job.PT(:,1),Affinity,'o-b')
 xlabel('T (°C)')
 ylabel('A (J/mol)')
-title('First derivative of \DeltaG_s_y_s')
+title('Affinity (from metastable) of Method 2 (J/mol)')
 
 nexttile
-plot(Job.PT(:,1),-DGexcluded,'o-k')
+plot(Job.PT(:,1),[0,diff(Affinity)],'o-b')
 xlabel('T (°C)')
-ylabel('G (J/mol)')
+ylabel('A (J.mol^-^1.°C^-^1)')
+title('First derivative of Affinity')
+
+DGgrt = -DGexcluded;
+
+nexttile
+plot(Job.PT(:,1),DGgrt,'o-k')
+xlabel('T (°C)')
+ylabel('G (J/mol of excluded phase)')
 title('\DeltaG_g_r_t of Method 3')
 
 nexttile
-plot(Job.PT(:,1),(-GsysEqui-GsysEqui(1))./NbMolesSyst,'o-k')
+plot(Job.PT(:,1),[0,diff(DGgrt)],'o-k')
 xlabel('T (°C)')
-ylabel('G (J/mol)')
-title('\DeltaG of Method 2')
+ylabel('G (J.mol^-^1.°C^-^1)')
+title('First derivative of \DeltaG_g_r_t of Method 3')
 
-nexttile
-plot(Job.PT(:,1),(GsytMeta-GsysEqui)./NbMolesSyst,'o-b')
-xlabel('T (°C)')
-ylabel('A (J/mol)')
-title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
 
 t = nexttile; hold on
 ListChemPlot = {'MGO','MNO','CAO','FEO','AL2O3','SIO2'};
+Compt = 0;
+Eliminate = [];
 for i = 1:length(ListChemPlot)
     Where = find(ismember(El4ChemPot,ListChemPlot{i}));
-    plot(Job.PT(:,1),DeltaChemPot(:,Where))
+    if isempty(Where)
+        Compt = Compt + 1;
+        Eliminate(Compt) = i;
+    else
+        plot(Job.PT(:,1),DeltaChemPot(:,Where));
+    end
 end
-t.YLim = [-100,100];
+ListChemPlot(Eliminate) = [];
+%t.YLim = [-100,100];
 t.Box = 'on';
 legend(ListChemPlot)
 xlabel('T (°C)')
@@ -220,6 +275,12 @@ ylabel('\Delta\mu (J/mol)')
 
 keyboard
 
+
+nexttile
+plot(Job.PT(:,1),(-GsysEqui-GsysEqui(1))./NbMolesSyst,'o-k')
+xlabel('T (°C)')
+ylabel('G (J/mol)')
+title('\DeltaG of Method 2')
 
 
 
@@ -235,93 +296,75 @@ keyboard
 
 
 
-figure,
-nexttile
-plot(Job.PT(:,1),GsytMeta-GsysEqui,'o-b')
-xlabel('T (°C)')
-ylabel('A (J/mol)')
-title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
-
-nexttile
-plot(Job.PT(:,1),(GsytMeta-GsysEqui)/12,'o-b')
-xlabel('T (°C)')
-ylabel('A (J / mol / 12)')
-title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
-
-nexttile
-plot(Job.PT(:,1),((GsytMeta-GsysEqui)./12)./DeltaT','o-b')
-xlabel('T (°C)')
-ylabel('A (J / mol / 12 / K)')
-title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
-
-nexttile
-plot(Job.PT(:,1),((GsytMeta-GsysEqui))./DeltaT','o-b')
-xlabel('T (°C)')
-ylabel('A (J / mol.K)')
-title('Affinity = G_i_n_i_t_i_a_l - G_f_i_n_a_l (from metastable)')
-
-
-figure,
-nexttile
-plot(Job.PT(:,1),-DGexcluded,'o-k')
-xlabel('T (°C)')
-ylabel('pseudo-A (J)')
-title('Method 3')
-
-nexttile
-plot(Job.PT(:,1),-DGexcluded./12,'o-k')
-xlabel('T (°C)')
-ylabel('pseudo-A (J / 12)')
-title('pseudo reaction affinity (Method 3)')
-
-nexttile
-plot(Job.PT(:,1),GsytMethod3-GsysEqui,'o-b')
-xlabel('T (°C)')
-ylabel('A (J/mol)')
-title('Diff G_s_y_s of Method 3')
-
-
-
-
-
-
-figure
-nexttile
-plot(Job.PT(:,1),(GsysEqui(1)-GsysEqui)./1e3,'o-b')
-xlabel('T (°C)')
-ylabel('G (kJ/mol)')
-title('Diff G_s_y_s Method 2 (pseudo-A)')
-
-nexttile
-plot(Job.PT(:,1),(GsysEqui(1)-GsysEqui)./12,'o-b')
-xlabel('T (°C)')
-ylabel('G (kJ / mol / 12)')
-title('Diff G_s_y_s Method 2 (pseudo-A)')
-
-nexttile
-plot(Job.PT(:,1),((GsysEqui(1)-GsysEqui)./12)./DeltaT','o-b')
-xlabel('T (°C)')
-ylabel('G (kJ/mol.K / 12)')
-title('Diff G_s_y_s Method 2 (pseudo-A)')
-
-
-
-keyboard
-
-
-
-
-
-
-
-
-
 
 keyboard
 
 
 
 end
+
+
+% EMF.Equi.SSNames = {};
+% EMF.Equi.Data(1).EM = {};
+% EMF.Equi.Data(1).EMprop = [];
+
+function [EMF] = BackupEMF(EMF,WorkVariMod,iStep,Case)
+
+for i = 1:length(WorkVariMod.SS)
+    Name = WorkVariMod.SS(i).Name;
+    IndSS = find(ismember(EMF.(Case).SSNames,Name));
+    if isempty(IndSS)
+        EMF.(Case).SSNames{end+1} = Name;
+        IndSS = length(EMF.(Case).SSNames);
+        
+        EMF.(Case).Data(end+1).EM = {};
+        EMF.(Case).Data(end+1).EMprop = [];
+    end
+    
+    IndEM = [];
+    for j = 1:length(WorkVariMod.SS(i).EM)
+        EM = WorkVariMod.SS(i).EM{j};
+        Ind = find(ismember(EMF.(Case).Data(IndSS).EM,EM));
+        if isempty(Ind)
+            EMF.(Case).Data(IndSS).EM{end+1} = EM;
+            Ind = length(EMF.(Case).Data(IndSS).EM);
+        end
+        IndEM(j) = Ind;
+    end
+    
+    EMF.(Case).Data(IndSS).EMprop(iStep,IndEM) = WorkVariMod.SS(i).EMprop;
+end
+
+end
+
+
+function [ChemMineral] = BackupMinComp(ChemMineral,WorkVariMod,iStep,Case)
+
+for i = 1:length(WorkVariMod.Names4Moles)
+    Name = WorkVariMod.Names4Moles{i};
+    
+    IndMin = find(ismember(ChemMineral.(Case).MinNames,Name));
+    if isempty(IndMin)
+        ChemMineral.(Case).MinNames{end+1} = Name;
+        IndMin = length(ChemMineral.(Case).MinNames);
+    end
+    
+    for j = 1:length(WorkVariMod.Els)
+        El = WorkVariMod.Els{j};
+        Ind = find(ismember(ChemMineral.(Case).ElNames,El));
+        if isempty(Ind)
+            ChemMineral.(Case).ElNames{end+1} = El;
+            Ind = length(ChemMineral.(Case).ElNames);
+        end
+        IndEl(j) = Ind;
+    end
+    
+    ChemMineral.(Case).Min(IndMin).Comp(iStep,IndEl) = WorkVariMod.MOLES(i,:);
+end
+
+end
+
+
 
 function [TempBulk] = GenerateBulkForMetastablePhase(Elem,Moles)
 
