@@ -117,7 +117,7 @@ for iStep = 1:size(Job.PT,1)
     WorkVariMod_Shit.Names4Moles
     
     ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_Shit,iStep,'MetaPartial');
-    EMF = BackupEMF(EMF,WorkVariMod,iStep,'MetaPartial');
+    EMF = BackupEMF(EMF,WorkVariMod_Shit,iStep,'MetaPartial');
     
     % Chemical components
     ChemPot1 = [];
@@ -170,7 +170,7 @@ for iStep = 1:size(Job.PT,1)
             [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
             
             ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,'Meta');
-            EMF = BackupEMF(EMF,WorkVariMod,iStep,'Meta');
+            EMF = BackupEMF(EMF,WorkVariMod_META,iStep,'Meta');
             
             GminMeta(i) = WorkVariMod_META.Gsys;
             GminMeta2(i) = WorkVariMod_META.Gsys2;
@@ -272,6 +272,8 @@ legend(ListChemPlot)
 xlabel('T (°C)')
 ylabel('\Delta\mu (J/mol)')
 
+open EMF
+open ChemMineral
 
 keyboard
 
@@ -303,36 +305,33 @@ keyboard
 
 end
 
-
-% EMF.Equi.SSNames = {};
-% EMF.Equi.Data(1).EM = {};
-% EMF.Equi.Data(1).EMprop = [];
-
 function [EMF] = BackupEMF(EMF,WorkVariMod,iStep,Case)
 
-for i = 1:length(WorkVariMod.SS)
-    Name = WorkVariMod.SS(i).Name;
-    IndSS = find(ismember(EMF.(Case).SSNames,Name));
-    if isempty(IndSS)
-        EMF.(Case).SSNames{end+1} = Name;
-        IndSS = length(EMF.(Case).SSNames);
-        
-        EMF.(Case).Data(end+1).EM = {};
-        EMF.(Case).Data(end+1).EMprop = [];
-    end
-    
-    IndEM = [];
-    for j = 1:length(WorkVariMod.SS(i).EM)
-        EM = WorkVariMod.SS(i).EM{j};
-        Ind = find(ismember(EMF.(Case).Data(IndSS).EM,EM));
-        if isempty(Ind)
-            EMF.(Case).Data(IndSS).EM{end+1} = EM;
-            Ind = length(EMF.(Case).Data(IndSS).EM);
+if isfield(WorkVariMod,'SS')
+    for i = 1:length(WorkVariMod.SS)
+        Name = WorkVariMod.SS(i).Name;
+        IndSS = find(ismember(EMF.(Case).SSNames,Name));
+        if isempty(IndSS)
+            EMF.(Case).SSNames{end+1} = Name;
+            IndSS = length(EMF.(Case).SSNames);
+            
+            EMF.(Case).Data(end+1).EM = {};
+            EMF.(Case).Data(end+1).EMprop = [];
         end
-        IndEM(j) = Ind;
+        
+        IndEM = [];
+        for j = 1:length(WorkVariMod.SS(i).EM)
+            EM = WorkVariMod.SS(i).EM{j};
+            Ind = find(ismember(EMF.(Case).Data(IndSS).EM,EM));
+            if isempty(Ind)
+                EMF.(Case).Data(IndSS).EM{end+1} = EM;
+                Ind = length(EMF.(Case).Data(IndSS).EM);
+            end
+            IndEM(j) = Ind;
+        end
+        
+        EMF.(Case).Data(IndSS).EMprop(iStep,IndEM) = WorkVariMod.SS(i).EMprop;
     end
-    
-    EMF.(Case).Data(IndSS).EMprop(iStep,IndEM) = WorkVariMod.SS(i).EMprop;
 end
 
 end
