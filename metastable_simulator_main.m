@@ -310,27 +310,29 @@ function [EMF] = BackupEMF(EMF,WorkVariMod,iStep,Case)
 if isfield(WorkVariMod,'SS')
     for i = 1:length(WorkVariMod.SS)
         Name = WorkVariMod.SS(i).Name;
-        IndSS = find(ismember(EMF.(Case).SSNames,Name));
-        if isempty(IndSS)
-            EMF.(Case).SSNames{end+1} = Name;
-            IndSS = length(EMF.(Case).SSNames);
-            
-            EMF.(Case).Data(end+1).EM = {};
-            EMF.(Case).Data(end+1).EMprop = [];
-        end
-        
-        IndEM = [];
-        for j = 1:length(WorkVariMod.SS(i).EM)
-            EM = WorkVariMod.SS(i).EM{j};
-            Ind = find(ismember(EMF.(Case).Data(IndSS).EM,EM));
-            if isempty(Ind)
-                EMF.(Case).Data(IndSS).EM{end+1} = EM;
-                Ind = length(EMF.(Case).Data(IndSS).EM);
+        if ~isempty(Name)
+            IndSS = find(ismember(EMF.(Case).SSNames,Name));
+            if isempty(IndSS)
+                EMF.(Case).SSNames{end+1} = Name;
+                IndSS = length(EMF.(Case).SSNames);
+
+                EMF.(Case).Data(end+1).EM = {};
+                EMF.(Case).Data(end+1).EMprop = [];
             end
-            IndEM(j) = Ind;
+
+            IndEM = [];
+            for j = 1:length(WorkVariMod.SS(i).EM)
+                EM = WorkVariMod.SS(i).EM{j};
+                Ind = find(ismember(EMF.(Case).Data(IndSS).EM,EM));
+                if isempty(Ind)
+                    EMF.(Case).Data(IndSS).EM{end+1} = EM;
+                    Ind = length(EMF.(Case).Data(IndSS).EM);
+                end
+                IndEM(j) = Ind;
+            end
+
+            EMF.(Case).Data(IndSS).EMprop(iStep,IndEM) = WorkVariMod.SS(i).EMprop;
         end
-        
-        EMF.(Case).Data(IndSS).EMprop(iStep,IndEM) = WorkVariMod.SS(i).EMprop;
     end
 end
 
