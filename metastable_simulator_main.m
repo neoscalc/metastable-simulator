@@ -9,6 +9,8 @@ close all
 clc
 
 version = '1.3';
+% --
+Compatibility = '1.2';
 
 % ----------------
 % Version history:
@@ -17,8 +19,8 @@ version = '1.3';
 % version 1.2   Jul 2022    Bern
 % version 1.1   May 2022    SWOT
 
-
-Print = 1;
+Print = 0;
+Stop = 0;
 
 % -- Save results in a separate folder (LastResults)
 % if isequal(exist([cd,'/LastResults']),7)
@@ -57,6 +59,11 @@ else
 end
 
 Job = readInputFile(InputFile);
+
+if str2num(Job.MetastableSimulatorVersion) < str2num(Compatibility)
+    warndlg('This input file might not be compatible with this version of the simulator','Error')
+    return
+end
 
 % Check for database in working directory
 if ~exist(fullfile(cd,Job.Database))
@@ -177,7 +184,15 @@ for iStep = 1:size(Job.PT,1)
 
         GminMeta = zeros(size(LastStable.Minerals));
         GminMeta2 = zeros(size(LastStable.Minerals));
-        NbMolesSyst_META_TEMP = 0;
+        GminMeta_SPEC = zeros(size(LastStable.Minerals));
+
+        NbMolesSyst_META_TEMP = zeros(length(LastStable.Minerals)-1,1);           % All stable "phases"
+        NbMolesSyst_META_TEMP_SPEC = zeros(length(LastStable.Minerals)-1,1);      % Dominant phase 
+
+        DeltaMoles = zeros(length(LastStable.Minerals)-1,1);
+        DeltaMolesPer = zeros(length(LastStable.Minerals)-1,1);
+        DeltaG = zeros(length(LastStable.Minerals)-1,1);
+        DeltaGPer = zeros(length(LastStable.Minerals)-1,1);
 
         for i = 1:length(LastStable.Minerals)-1
 
@@ -198,30 +213,51 @@ for iStep = 1:size(Job.PT,1)
             GminMeta(i) = WorkVariMod_META.Gsys;        % Gsys of theriak
             GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
 
-            NbMolesSyst_META_TEMP = NbMolesSyst_META_TEMP + WorkVariMod_META.NbMolesSyst;
-
-            %WorkVariMod_META.Names4Moles;
-            %WorkVariMod_META.MOLES;
-
             if Print
                 Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
             end
+
+            % Check minimzation results and recalculate NbMolesSyst (version 1.3 – Cavalaire 2023)
+            NbMolesTable = sum(WorkVariMod_META.MOLES,2);
+
+            [Val,IdxPhase] = max(NbMolesTable(1:end-1));
+
+            NbMolesSyst_META_TEMP_SPEC(i) = NbMolesTable(IdxPhase);
+            NbMolesSyst_META_TEMP(i) = NbMolesTable(end);
             
+            DeltaMoles(i) = NbMolesSyst_META_TEMP(i)-NbMolesSyst_META_TEMP_SPEC(i);
+            DeltaMolesPer(i) = (NbMolesSyst_META_TEMP(i)-NbMolesSyst_META_TEMP_SPEC(i))/NbMolesSyst_META_TEMP(i)*100;
+
+            GminMeta_SPEC(i) = -sum(WorkVariMod_META.MOLES(IdxPhase,:) .* WorkVariMod_META.ChemPotEl);
+
+            DeltaG(i) = WorkVariMod_META.Gsys - GminMeta_SPEC(i);
+            DeltaGPer(i) = (WorkVariMod_META.Gsys - GminMeta_SPEC(i))/WorkVariMod_META.Gsys*100;
+            %WorkVariMod(1).ChemPotEl
+
+            if Print
+                fprintf('%s\n','...... Check of Gphase calculation for small rounding errors in the minimization of complex solutions:')
+                fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
+            end
+
             if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 10
-                disp('Oups, G metastable not correctly estimated, check details');
+                disp('Oups, something went wrong as G metastable is incorrectly estimated, check details');
+                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
                 keyboard
             end
         end
         
-        NbMolesSyst_META(iStep) = NbMolesSyst_META_TEMP;
 
-        GsytMeta(iStep) = sum(GminMeta);
-
+        NbMolesSyst_META(iStep) = sum(NbMolesSyst_META_TEMP_SPEC);          % can be slighly Lower than sum(Gsys)/NbMolesSyst (see bellow)
+        
+        GsytMeta(iStep) = sum(GminMeta_SPEC);                               % was sum(GminMeta) in 1.2
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
         Affinity = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst;
 
-        %1
+        if Stop
+            keyboard
+        end
+        % 1
         %if abs(GsytMeta(iStep)-GsysEqui(iStep)) > 50
             %keyboard
         %end
@@ -423,13 +459,12 @@ end
 end
 
 
-
 function [TempBulk] = GenerateBulkForMetastablePhase(Elem,Moles)
 
 TempBulk = '';
 for i = 1:length(Elem)
     if Moles(i) > 0
-        TempBulk = [TempBulk,char(Elem{i}),'(',num2str(Moles(i),'%.6f'),')'];
+        TempBulk = [TempBulk,char(Elem{i}),'(',num2str(Moles(i),'%.6f'),')'];    % changing to 8 figures doesn't improve
     end
 end
 
