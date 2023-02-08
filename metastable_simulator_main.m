@@ -8,19 +8,29 @@ function [] = metastable_simulator_main(varargin)
 close all
 clc
 
-version = '1.2';
+version = '1.3';
+
+% ----------------
+% Version history:
+% ----------------
+% Version 1.3   Feb 2023    Cavalaire
+% version 1.2   Jul 2022    Bern
+% version 1.1   May 2022    SWOT
+
+
+Print = 1;
 
 % -- Save results in a separate folder (LastResults)
-if isequal(exist([cd,'/LastResults']),7)
-    Reply = questdlg('Do you want to replace LastResults?','Modeling','Yes','No (cancel)','Yes');
-    switch Reply
-        case 'Yes'
-            rmdir([cd,'/LastResults'],'s'); 
-        otherwise
-            return
-    end
-end
-[Success,Message,MessageID] = mkdir('LastResults');
+% if isequal(exist([cd,'/LastResults']),7)
+%     Reply = questdlg('Do you want to replace LastResults?','Modeling','Yes','No (cancel)','Yes');
+%     switch Reply
+%         case 'Yes'
+%             rmdir([cd,'/LastResults'],'s'); 
+%         otherwise
+%             return
+%     end
+% end
+% [Success,Message,MessageID] = mkdir('LastResults');
 % --
 
 clc, close all
@@ -89,6 +99,9 @@ EMF.Meta.Data(1).EMprop = [];
 
 for iStep = 1:size(Job.PT,1)
     
+    disp(' ')
+    disp(' ')
+    disp('*****************************************')
     disp(['Calculating step #',num2str(iStep),'/',num2str(size(Job.PT,1))])
 
     % (1) Equilibrium calculation (minimum G)
@@ -98,6 +111,10 @@ for iStep = 1:size(Job.PT,1)
     [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
     [WorkVariMod] = Core_ReadResTheriak(yum,'');
     
+    if Print
+        Print_Results(WorkVariMod,Job.Bulk,'EQUILIBRIUM');
+    end
+
     ChemMineral = BackupMinComp(ChemMineral,WorkVariMod,iStep,'Equi');
     EMF = BackupEMF(EMF,WorkVariMod,iStep,'Equi');
     
@@ -114,7 +131,9 @@ for iStep = 1:size(Job.PT,1)
     DGexcluded(iStep) = WorkVariMod_Shit.DGexcluded;
     NbMolesSyst_Shit(iStep) = WorkVariMod_Shit.NbMolesSyst;
     
-    WorkVariMod_Shit.Names4Moles
+    if Print
+        Print_Results(WorkVariMod_Shit,Job.Bulk,'SHIT');
+    end
     
     ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_Shit,iStep,'MetaPartial');
     EMF = BackupEMF(EMF,WorkVariMod_Shit,iStep,'MetaPartial');
@@ -150,12 +169,16 @@ for iStep = 1:size(Job.PT,1)
         GsytMeta(iStep) = WorkVariMod.Gsys;
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
+        NbMolesSyst_META(iStep) = NbMolesSyst(iStep);
+
     else
         
         % Recalculate the G of the metastable system one-by-one...
 
         GminMeta = zeros(size(LastStable.Minerals));
         GminMeta2 = zeros(size(LastStable.Minerals));
+        NbMolesSyst_META_TEMP = 0;
+
         for i = 1:length(LastStable.Minerals)-1
 
             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
@@ -163,7 +186,7 @@ for iStep = 1:size(Job.PT,1)
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
             dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
 
-            disp(LastStable.Minerals{i})
+            % disp(LastStable.Minerals{i})
             
             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
 
@@ -172,11 +195,17 @@ for iStep = 1:size(Job.PT,1)
             ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,'Meta');
             EMF = BackupEMF(EMF,WorkVariMod_META,iStep,'Meta');
             
-            GminMeta(i) = WorkVariMod_META.Gsys;
-            GminMeta2(i) = WorkVariMod_META.Gsys2;
+            GminMeta(i) = WorkVariMod_META.Gsys;        % Gsys of theriak
+            GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
+
+            NbMolesSyst_META_TEMP = NbMolesSyst_META_TEMP + WorkVariMod_META.NbMolesSyst;
 
             %WorkVariMod_META.Names4Moles;
             %WorkVariMod_META.MOLES;
+
+            if Print
+                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
+            end
             
             if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 10
                 disp('Oups, G metastable not correctly estimated, check details');
@@ -184,11 +213,15 @@ for iStep = 1:size(Job.PT,1)
             end
         end
         
+        NbMolesSyst_META(iStep) = NbMolesSyst_META_TEMP;
+
         GsytMeta(iStep) = sum(GminMeta);
 
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
-        1
+        Affinity = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst;
+
+        %1
         %if abs(GsytMeta(iStep)-GsysEqui(iStep)) > 50
             %keyboard
         %end
@@ -223,7 +256,7 @@ ylabel('A (J.mol^-^1.°C^-^1)')
 title('First derivative of -\DeltaG_s_y_s')
 
 
-Affinity = (GsytMeta-GsysEqui)./NbMolesSyst;
+Affinity = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst;
 
 nexttile
 plot(Job.PT(:,1),Affinity,'o-b')
@@ -272,8 +305,8 @@ legend(ListChemPlot)
 xlabel('T (°C)')
 ylabel('\Delta\mu (J/mol)')
 
-open EMF
-open ChemMineral
+%open EMF
+%open ChemMineral
 
 keyboard
 
@@ -304,6 +337,30 @@ keyboard
 
 
 end
+
+
+function Print_Results(WorkVariMod,Bulk,Mode)
+
+
+fprintf('\n\n%s\n\n',['--> ',Mode,' <--'])
+
+fprintf('%s\n\n',Bulk)
+
+CodeEl = repmat('%s\t',1,length(WorkVariMod.Els)+1);
+CodeEl(end) = 'n';
+
+CodeVal = ['%s\t',repmat('%.4f\t',1,length(WorkVariMod.Els))];
+CodeVal(end) = 'n';
+
+fprintf(CodeEl,' ',WorkVariMod.Els{:})
+for i = 1:size(WorkVariMod.MOLES,1)
+    fprintf(CodeVal,WorkVariMod.Names4Moles{i},WorkVariMod.MOLES(i,:));
+end
+
+fprintf('\n%s\n',['Gsys = ',num2str(WorkVariMod.Gsys),' J for ',num2str(WorkVariMod.NbMolesSyst), ' moles = ',num2str(WorkVariMod.Gsys/WorkVariMod.NbMolesSyst),' J/mol'])
+
+end
+
 
 function [EMF] = BackupEMF(EMF,WorkVariMod,iStep,Case)
 
@@ -386,6 +443,9 @@ function [WorkVariMod] = Core_ReadResTheriak(OutputTheriakd,ListRefMiner)
 %
 % -> This version reads the chemical potential from the Theriak's output
 % and does not required to define the components in the Job.Database.
+%
+% Gsys is calculated using the Gsys of therriak
+% Gsys2 is calculated from the chemical potentials of the elements
 %
 
 TestInput = strread(OutputTheriakd,'%s','delimiter','\n');
@@ -911,6 +971,9 @@ while 1
             while 1
                 TheLine = fgetl(fid);
                 if isequal(TheLine,-1)
+                    break
+                end
+                if isempty(TheLine)
                     break
                 end
                 if length(TheLine) > 1
