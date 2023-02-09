@@ -8,38 +8,18 @@ function [] = metastable_simulator_main(varargin)
 close all
 clc
 
-version = '1.3';
+version = '1.4';
 % --
-Compatibility = '1.2';
+Compatibility = '1.4';
 
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
+% version 1.4   Feb 2023    Cavalaire
 % Version 1.3   Feb 2023    Cavalaire
 % version 1.2   Jul 2022    Bern
 % version 1.1   May 2022    SWOT
 
-
-% ------------------------------------------------
-%                 O P T I O N S
-% ------------------------------------------------
-GenerateSeeds   = 0;
-Print           = 0;
-Stop            = 0;
-
-
-% -- Save results in a separate folder (LastResults)
-% if isequal(exist([cd,'/LastResults']),7)
-%     Reply = questdlg('Do you want to replace LastResults?','Modeling','Yes','No (cancel)','Yes');
-%     switch Reply
-%         case 'Yes'
-%             rmdir([cd,'/LastResults'],'s'); 
-%         otherwise
-%             return
-%     end
-% end
-% [Success,Message,MessageID] = mkdir('LastResults');
-% --
 
 clc, close all
 disp(' ')
@@ -80,7 +60,22 @@ if ~exist(fullfile(cd,Job.Database))
     return
 end
 
-if GenerateSeeds
+% -- Save results in a separate folder (LastResults)
+if Job.SaveOutput
+    if isequal(exist([cd,'/LastResults']),7)
+        Reply = questdlg('Do you want to replace LastResults?','Modeling','Yes','No (cancel)','Yes');
+        switch Reply
+            case 'Yes'
+                rmdir([cd,'/LastResults'],'s');
+            otherwise
+                return
+        end
+    end
+    [Success,Message,MessageID] = mkdir('LastResults');
+end
+% --
+
+if Job.GenerateSeeds
     disp('Generating SEEDS for this job, please wait ...')
     disp(' ')
     disp('**** SEEDS ****')
@@ -145,7 +140,7 @@ for iStep = 1:size(Job.PT,1)
     [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
     [WorkVariMod] = Core_ReadResTheriak(yum,'');
     
-    if Print
+    if Job.Print
         Print_Results(WorkVariMod,Job.Bulk,'EQUILIBRIUM');
     end
 
@@ -165,7 +160,7 @@ for iStep = 1:size(Job.PT,1)
     DGexcluded(iStep) = WorkVariMod_Shit.DGexcluded;
     NbMolesSyst_Shit(iStep) = WorkVariMod_Shit.NbMolesSyst;
     
-    if Print
+    if Job.Print
         Print_Results(WorkVariMod_Shit,Job.Bulk,'SHIT');
     end
     
@@ -240,7 +235,7 @@ for iStep = 1:size(Job.PT,1)
             GminMeta(i) = WorkVariMod_META.Gsys;        % Gsys of theriak
             GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
 
-            if Print
+            if Job.Print
                 Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
             end
 
@@ -272,7 +267,7 @@ for iStep = 1:size(Job.PT,1)
                 fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
             end
 
-            if Print
+            if Job.Print
                 fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
                 fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
                 
@@ -294,7 +289,7 @@ for iStep = 1:size(Job.PT,1)
 
         Affinity = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst;
 
-        if Stop
+        if Job.Pause
             keyboard
         end
         % 1
@@ -308,7 +303,7 @@ end
 DeltaT = Job.PT(:,1) - Job.PT(1,1);
 dT = Job.PT(2:end,1)'-Job.PT(1:end-1,1)';
 
-figure
+f1 = figure;
 tiledlayout(4,2)
 
 % nexttile
@@ -332,7 +327,7 @@ ylabel('A (J.mol^-^1.°C^-^1)')
 title('First derivative of -\DeltaG_s_y_s')
 
 
-Affinity = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst;
+% Affinity = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst;
 
 nexttile
 plot(Job.PT(:,1),Affinity,'o-b')
@@ -381,35 +376,41 @@ legend(ListChemPlot)
 xlabel('T (°C)')
 ylabel('\Delta\mu (J/mol)')
 
+
+t = nexttile; hold on
+ListChemPlot = {'MGO','MNO','CAO','FEO','AL2O3','SIO2'};
+Compt = 0;
+Eliminate = [];
+for i = 1:length(ListChemPlot)
+    Where = find(ismember(El4ChemPot,ListChemPlot{i}));
+    if isempty(Where)
+        Compt = Compt + 1;
+        Eliminate(Compt) = i;
+    else
+        plot(Job.PT(:,1),DeltaChemPot(:,Where));
+    end
+end
+ListChemPlot(Eliminate) = [];
+t.YLim = [-200,30];
+t.Box = 'on';
+legend(ListChemPlot)
+xlabel('T (°C)')
+ylabel('\Delta\mu (J/mol)')
+
 %open EMF
 %open ChemMineral
 
-        keyboard 
+if Job.SaveOutput
+    f1.Position = [633,3,1085,1182];
+    
+    saveas(f1,'LastResults/Results.svg');
+    saveas(f1,'LastResults/Results.fig');
 
+    
 
-nexttile
-plot(Job.PT(:,1),(-GsysEqui-GsysEqui(1))./NbMolesSyst,'o-k')
-xlabel('T (°C)')
-ylabel('G (J/mol)')
-title('\DeltaG of Method 2')
-
-
-
-
-figure
-plot(Job.PT(:,1),DeltaChemPot','-')
-legend(El4ChemPot)
-xlabel('T (°C)')
-ylabel('\delta\mu (J/mol)')
+end
 
 keyboard
-
-
-
-
-
-keyboard
-
 
 
 end
@@ -1050,6 +1051,44 @@ Job.MetaCalc = char(TheS{1}(2));
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
 Job.Bulk = char(TheS{1}(2));
+
+TheL = fgetl(fid);
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+switch char(TheS{1}(2))
+    case 'ON'
+        Job.GenerateSeeds = 1;
+    case 'OFF'
+        Job.GenerateSeeds = 0;
+end
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+switch char(TheS{1}(2))
+    case 'ON'
+        Job.SaveOutput = 1;
+    case 'OFF'
+        Job.SaveOutput = 0;
+end
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+switch char(TheS{1}(2))
+    case 'ON'
+        Job.Print = 1;
+    case 'OFF'
+        Job.Print = 0;
+end
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+switch char(TheS{1}(2))
+    case 'ON'
+        Job.Pause = 1;
+    case 'OFF'
+        Job.Pause = 0;
+end
 
 while 1
     TheLine = fgetl(fid);
