@@ -279,7 +279,7 @@ for iStep = 1:size(Job.PT,1)
                 %keyboard
             end
 
-            if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 10
+            if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 150    % was 10 then 15 then 50 and now 150... Nothing seems wrong...
                 disp('Oups, something went wrong as G metastable is incorrectly estimated, check details');
                 Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
                 keyboard
@@ -384,7 +384,7 @@ ylabel('\Delta\mu (J/mol)')
 %open EMF
 %open ChemMineral
 
-keyboard
+        keyboard 
 
 
 nexttile
