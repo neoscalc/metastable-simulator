@@ -24,8 +24,8 @@ Compatibility = '1.4';
 clc, close all
 disp(' ')
 disp(['    ------------------------------------------'])
-disp(['   |           METASTABILITY SIMULATOR        |']);
-disp(['   |                    (',version,')                 |']);
+disp(['   |          METASTABILITY SIMULATOR        |']);
+disp(['   |                   (',version,')                 |']);
 disp(['    ------------------------------------------'])
 disp(' ')
 
@@ -407,7 +407,21 @@ if Job.SaveOutput
     saveas(f1,'LastResults/Results.fig');
 
     
+    % Additional figures only for saving
+    f2 = figure;
+    plot(Job.PT(:,1),Job.PT(:,2),'-ok','MarkerFaceColor',[0.5,0.7,0.8])
+    axis([min(Job.PT(:,1))-20 max(Job.PT(:,1))+20 min(Job.PT(:,2))-200 max(Job.PT(:,2))+200])
+    xlabel('Temperature (°C)')
+    ylabel('Pressure (bar)')
+    
+    saveas(f2,'LastResults/PT.svg');
+    saveas(f2,'LastResults/PT.fig');
 
+    
+    % Export compositions
+    save('LastResults/EMF.mat','EMF');
+    save('LastResults/ChemMineral.mat','ChemMineral');
+    save('LastResults/Job.mat','Job');
 end
 
 keyboard
