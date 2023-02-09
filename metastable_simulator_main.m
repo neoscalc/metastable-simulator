@@ -12,15 +12,21 @@ version = '1.3';
 % --
 Compatibility = '1.2';
 
-% ----------------
-% Version history:
-% ----------------
+% ------------------------------------------------
+%                V E R S I O N S
+% ------------------------------------------------
 % Version 1.3   Feb 2023    Cavalaire
 % version 1.2   Jul 2022    Bern
 % version 1.1   May 2022    SWOT
 
-Print = 0;
-Stop = 0;
+
+% ------------------------------------------------
+%                 O P T I O N S
+% ------------------------------------------------
+GenerateSeeds   = 0;
+Print           = 0;
+Stop            = 0;
+
 
 % -- Save results in a separate folder (LastResults)
 % if isequal(exist([cd,'/LastResults']),7)
@@ -73,6 +79,27 @@ if ~exist(fullfile(cd,Job.Database))
     disp(' ')
     return
 end
+
+if GenerateSeeds
+    disp('Generating SEEDS for this job, please wait ...')
+    disp(' ')
+    disp('**** SEEDS ****')
+    for iStep = 1:size(Job.PT,1)
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',Job.Bulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char(Job.Database,'no'),'delimiter','');
+
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+        [WorkVariMod] = Core_ReadResTheriak(yum,'');
+
+        for i = 1:length(WorkVariMod.Seeds)
+            disp(char(WorkVariMod.Seeds{i}))
+        end
+    end
+    disp(' ')
+    disp('Done, copy the seeds to the database')
+    return
+end
+
 
 LastStable.ID = [];
 LastStable.Minerals = {};
@@ -234,9 +261,22 @@ for iStep = 1:size(Job.PT,1)
             DeltaGPer(i) = (WorkVariMod_META.Gsys - GminMeta_SPEC(i))/WorkVariMod_META.Gsys*100;
             %WorkVariMod(1).ChemPotEl
 
-            if Print
-                fprintf('%s\n','...... Check of Gphase calculation for small rounding errors in the minimization of complex solutions:')
+            if DeltaGPer(i) >= 0.001
+
+                PrintFatalError
+                
+                % Then we print this one:
+                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
+
+                fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
                 fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
+            end
+
+            if Print
+                fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
+                fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
+                
+                %keyboard
             end
 
             if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 10
@@ -464,12 +504,11 @@ function [TempBulk] = GenerateBulkForMetastablePhase(Elem,Moles)
 TempBulk = '';
 for i = 1:length(Elem)
     if Moles(i) > 0
-        TempBulk = [TempBulk,char(Elem{i}),'(',num2str(Moles(i),'%.6f'),')'];    % changing to 8 figures doesn't improve
+        TempBulk = [TempBulk,char(Elem{i}),'(',num2str(Moles(i),'%.6f'),')'];    % changing from 6 to 8 figures doesn't improve
     end
 end
 
 end
-
 
 
 function [WorkVariMod] = Core_ReadResTheriak(OutputTheriakd,ListRefMiner)
@@ -965,8 +1004,26 @@ while 1
 end
 
 
+% SEEDS (Feb 2023 – Cavalaire)
+
+Start = length(TestInput)-4;
+ComptSeeds = 0;
+Seeds = '';
+while 1
+    Temp = char(TestInput(Start-ComptSeeds));
+    if isempty(Temp)
+        break
+    end
+    ComptSeeds = ComptSeeds + 1;
+    Seeds{ComptSeeds} = Temp;
 end
 
+WorkVariMod(1).Seeds = Seeds;
+
+
+
+
+end
 
 
 function [Job] = readInputFile(FileName)
@@ -1022,3 +1079,17 @@ end
 fid = fclose(fid);
 
 end
+
+
+function [] = PrintFatalError()
+
+disp(' ')
+disp('  ______   _______       _        ______ _____  _____   ____  _____    _  ')
+disp(' |  ____/\|__   __|/\   | |      |  ____|  __ \|  __ \ / __ \|  __ \  | | ')
+disp(' | |__ /  \  | |  /  \  | |      | |__  | |__) | |__) | |  | | |__) | | | ')
+disp(' |  __/ /\ \ | | / /\ \ | |      |  __| |  _  /|  _  /| |  | |  _  /  | | ')
+disp(' | | / ____ \| |/ ____ \| |____  | |____| | \ \| | \ \| |__| | | \ \  |_| ')
+disp(' |_|/_/    \_\_/_/    \_\______| |______|_|  \_\_|  \_\\____/|_|  \_\ (_) ')                                                               
+
+end
+
