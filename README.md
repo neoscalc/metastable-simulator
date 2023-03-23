@@ -10,26 +10,26 @@ An example of input file is provided bellow. Each entry is described in the tabl
 
 | Short code      | Description                                                   |
 | ----------------| --------------------------------------------------------------|
-| Version         |         |
-| TheriakPath     |         |
-| Database        |         |
-| Metacalc        |         |
-| Bulk            |         |
+| Version         | Version of metastable simulator for compatibility check. Changing this value requires updating the format of the input file... |
+| TheriakPath     | Absolute path to Theriak       |
+| Database        | Name of the database for Theriak        |
+| Metacalc        | Name of the database with the excluded solution for mode 1 (nucleation))        |
+| Bulk            | Input for the original bulk rock composition in the Theriak format        |
 | --------------- |                                                               |
-| Mode            |         |
-| --- Options (1) |                                                               |
+| Mode            | Mode to run the program for this job        |
+| --- Options (1) | Options for mode 1 (nucleation)                                                              |
 | FracMin         |         |
 | FracMolFrac     |         |
-| --- Options (2) |                                                               |
-| EquiMin         |         |
-| EquiMolFrac     |         |
+| --- Options (2) | Options for mode 2 (persistence)                                                              |
+| EquiMin         | Mineral names (default: NONE) separated by space/tabulation. These minerals if stable will re-equilibrate at each stage!       |
+| EquiMolFrac     | Molde fractions (default: 1) separated by space/tabulation. The mole fraction of the mineral which re-equilibrate        |
 | --------------- |                                                               |
-| GenerateSeeds   |         |
-| SaveOutput      |         |
-| Print           |         |
-| Pause           |         |
+| GenerateSeeds   | ON/OFF (default: OFF) if activated the program only generates seeds and stop         |
+| SaveOutput      | ON/OFF (default: ON)       |
+| Print           | ON/OFF (default: OFF) if activated print all details in the command window              |
+| Pause           | ON/OFF (default: OFF) if activated the program pauses after each loop                     |
 | --------------- |                                                                |
-| >               | PT path + system behaviour (0=metastable; 1=equilibrated). Each row bellow this keyword defines a P–T step with the entries delimited by space or tabulation: temperature (°C); pressure (bar); key for system behaviour |
+| >               | PT path + system behaviour (0=metastable; 1=equilibrated). Each row bellow this keyword defines a P–T step with the entries separated by space or tabulation: temperature (°C); pressure (bar); key for system behaviour |
 
 
 
