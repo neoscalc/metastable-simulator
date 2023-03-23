@@ -22,7 +22,7 @@ An example of input file is provided bellow. Each entry is described in the tabl
 | FracMolFrac     |         |
 | --- Options (2) | Options for mode 2 (persistence)                                                              |
 | EquiMin         | Mineral names (default: NONE) separated by space/tabulation. These minerals if stable will re-equilibrate at each stage!       |
-| EquiMolFrac     | Molde fractions (default: 1) separated by space/tabulation. The mole fraction of the mineral which re-equilibrate        |
+| EquiMolFrac     | Molde fractions in the interval [0,1] (default: 1) separated by space/tabulation. The mole fraction of the mineral that re-equilibrate        |
 | --------------- |                                                               |
 | GenerateSeeds   | ON/OFF (default: OFF) if activated the program only generates seeds and stop         |
 | SaveOutput      | ON/OFF (default: ON)       |
