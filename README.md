@@ -8,28 +8,28 @@ Collection of programs for energy calculation of metastable assemblages using th
 
 An example of input file is provided bellow. Each entry is described in the table
 
-| Short code      | Description                                     |
-| ----------------| ------------------------------------------------|
+| Short code      | Description                                                   |
+| ----------------| --------------------------------------------------------------|
 | Version         |         |
 | TheriakPath     |         |
 | Database        |         |
 | Metacalc        |         |
 | Bulk            |         |
-| --------------- |                                                 |
+| --------------- |                                                               |
 | Mode            |         |
-| --- Options (1) |                                                 |
+| --- Options (1) |                                                               |
 | FracMin         |         |
 | FracMolFrac     |         |
-| --- Options (2) |                                                 |
+| --- Options (2) |                                                               |
 | EquiMin         |         |
 | EquiMolFrac     |         |
-| --------------- |                                                 |
+| --------------- |                                                               |
 | GenerateSeeds   |         |
 | SaveOutput      |         |
 | Print           |         |
 | Pause           |         |
-| --------------- |                                                 |
-| >               | PT path + system behaviour (0=metastable; 1=equilibrated) |
+| --------------- |                                                                |
+| >               | PT path + system behaviour (0=metastable; 1=equilibrated). Each row bellow this keyword defines a P–T step with the entries delimited by space or tabulation: temperature (°C); pressure (bar); key for system behaviour |
 
 
 
