@@ -1,4 +1,4 @@
-function [] = metastable_simulator_main(varargin)
+function [] = metastable_simulator(varargin)
 % metastable_simulator is a simple investigation tool and does not
 % calculate the metastability using our calibration method. 
 %
@@ -8,22 +8,19 @@ function [] = metastable_simulator_main(varargin)
 close all
 clc
 
-version = '1.5';
+version = '1.6';
 % --
-Compatibility = '1.5';
+Compatibility = '1.6';
 
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
-% version 1.5   Feb 2023    Cavalaire new mode "partial"
-% version 1.4   Feb 2023    Cavalaire improved start file
-% Version 1.3   Feb 2023    Cavalaire benchmark minimizations
+% version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
+% version 1.5   Feb 2023    Cavalaire, new calculation "partial"
+% version 1.4   Feb 2023    Cavalaire, improved start file
+% Version 1.3   Feb 2023    Cavalaire, benchmark minimizations
 % version 1.2   Jul 2022    Bern
 % version 1.1   May 2022    SWOT
-
-
-
-% Paralel tangent method
 
 
 clc, close all
@@ -100,6 +97,16 @@ if Job.GenerateSeeds
     return
 end
 
+switch Job.Mode
+    case 1
+        disp(' ')
+        disp('_______________________________________________________')
+        disp('METASTABLE SIMULATOR IS RUNNING IN MODE: [1] NUCLEATION')
+    case 2
+        disp(' ')
+        disp('________________________________________________________')
+        disp('METASTABLE SIMULATOR IS RUNNING IN MODE: [2] PERSISTENCE')
+end
 
 LastStable.ID = [];
 LastStable.Minerals = {};
@@ -167,49 +174,50 @@ for iStep = 1:size(Job.PT,1)
     ChemMineral = BackupMinComp(ChemMineral,WorkVariMod,iStep,'Equi');
     EMF = BackupEMF(EMF,WorkVariMod,iStep,'Equi');
     
-
-    % ---------------------------------------------------------------------
-    % Method 1 (Pattison; Affinity = delta_G)
-    dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',Job.Bulk,'   * '] ),'delimiter','');
-    dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
-    
-    [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-    [WorkVariMod_Method1] = Core_ReadResTheriak(yum,'');
-    
-    GsytMethod1(iStep) = WorkVariMod_Method1.Gsys;              % in J
-    
-    DGexcluded(iStep) = WorkVariMod_Method1.DGexcluded;
-    NbMolesSyst_1(iStep) = WorkVariMod_Method1.NbMolesSyst;
-    
-    if Job.Print
-        Print_Results(WorkVariMod_Method1,Job.Bulk,'Method1');
-    end
-    
-    ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_Method1,iStep,'Method1');
-    EMF = BackupEMF(EMF,WorkVariMod_Method1,iStep,'Method1');
-    
-
-    % ---------------------------------------------------------------------
-    % CPC Method "Chemical potential of components"
-    ChemPot1 = [];
-    ChemPot2 = [];
-    for i = 1:length(WorkVariMod.ChemComp)
-        WhereChemPot = find(ismember(El4ChemPot,WorkVariMod.ChemComp{i}));
-        if isempty(WhereChemPot)
-            El4ChemPot{end+1} = WorkVariMod.ChemComp{i};
-            WhereChemPot = length(El4ChemPot);
+    if isequal(Job.Mode,1)
+        % ---------------------------------------------------------------------
+        % Method 1 (Pattison; Affinity = delta_G)
+        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',Job.Bulk,'   * '] ),'delimiter','');
+        dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
+        
+        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+        [WorkVariMod_Method1] = Core_ReadResTheriak(yum,'');
+        
+        GsytMethod1(iStep) = WorkVariMod_Method1.Gsys;              % in J
+        
+        DGexcluded(iStep) = WorkVariMod_Method1.DGexcluded;
+        NbMolesSyst_1(iStep) = WorkVariMod_Method1.NbMolesSyst;
+        
+        if Job.Print
+            Print_Results(WorkVariMod_Method1,Job.Bulk,'Method1');
         end
-        ChemPot1(WhereChemPot) = WorkVariMod.ChemPot(i);
-    end
-    for i = 1:length(WorkVariMod_Method1.ChemComp)
-        WhereChemPot = find(ismember(El4ChemPot,WorkVariMod_Method1.ChemComp{i}));
-        if isempty(WhereChemPot)
-            El4ChemPot{end+1} = WorkVariMod_Method1.ChemComp{i};
-            WhereChemPot = length(El4ChemPot);
+        
+        ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_Method1,iStep,'Method1');
+        EMF = BackupEMF(EMF,WorkVariMod_Method1,iStep,'Method1');
+        
+    
+        % ---------------------------------------------------------------------
+        % CPC Method "Chemical potential of components"
+        ChemPot1 = [];
+        ChemPot2 = [];
+        for i = 1:length(WorkVariMod.ChemComp)
+            WhereChemPot = find(ismember(El4ChemPot,WorkVariMod.ChemComp{i}));
+            if isempty(WhereChemPot)
+                El4ChemPot{end+1} = WorkVariMod.ChemComp{i};
+                WhereChemPot = length(El4ChemPot);
+            end
+            ChemPot1(WhereChemPot) = WorkVariMod.ChemPot(i);
         end
-        ChemPot2(WhereChemPot) = WorkVariMod_Method1.ChemPot(i);
+        for i = 1:length(WorkVariMod_Method1.ChemComp)
+            WhereChemPot = find(ismember(El4ChemPot,WorkVariMod_Method1.ChemComp{i}));
+            if isempty(WhereChemPot)
+                El4ChemPot{end+1} = WorkVariMod_Method1.ChemComp{i};
+                WhereChemPot = length(El4ChemPot);
+            end
+            ChemPot2(WhereChemPot) = WorkVariMod_Method1.ChemPot(i);
+        end
+        DeltaChemPot(end+1,1:length(ChemPot2)) = ChemPot1-ChemPot2;
     end
-    DeltaChemPot(end+1,1:length(ChemPot2)) = ChemPot1-ChemPot2;
 
 
     % ---------------------------------------------------------------------
@@ -320,63 +328,81 @@ for iStep = 1:size(Job.PT,1)
             keyboard
         end
         
-        % ---------------------------------------------------------------------
-        % Method 3 [Lanari; Affinity_Method2 = delta_G(reacted and unreacted phases)]
-        
-        % Calculate the reactive bulk composition (done at every iteration in case of re-equilibration)
-        Idx4Frac = find(ismember(LastStable.Minerals,Job.FracMin));
-        
-        NewBulkMeth3 = LastStable.MOLES(end,:) - Job.FracMolFrac.*LastStable.MOLES(Idx4Frac,:);
+        if isequal(Job.Mode,1)
+            % ---------------------------------------------------------------------
+            % Method 3 [Lanari; Affinity_Method2 = delta_G(reacted and unreacted phases)]
 
-        NbMolesSyst = sum(LastStable.MOLES(end,:),2);
-        NbMolesFracSyst = sum(NewBulkMeth3,2);
-        DeltaMoles = NbMolesSyst - NbMolesFracSyst;
-        MolesFracMeta = sum(Job.FracMolFrac.*LastStable.MOLES(Idx4Frac,:),2);
-        
-        % Calculate GFracEqui 
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,NewBulkMeth3);
+            % Calculate the reactive bulk composition (done at every iteration in case of re-equilibration)
+            Idx4Frac = find(ismember(LastStable.Minerals,Job.FracMin));
 
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
+            NewBulkMeth3 = LastStable.MOLES(end,:) - Job.FracMolFrac.*LastStable.MOLES(Idx4Frac,:);
 
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-        [WorkVariMod_Method3] = Core_ReadResTheriak(yum,'');
-        
-        GFracEqui = WorkVariMod_Method3.Gsys;               % in J
+            NbMolesSyst = sum(LastStable.MOLES(end,:),2);
+            NbMolesFracSyst = sum(NewBulkMeth3,2);
+            DeltaMoles = NbMolesSyst - NbMolesFracSyst;
+            MolesFracMeta = sum(Job.FracMolFrac.*LastStable.MOLES(Idx4Frac,:),2);
 
-        ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_Method3,iStep,'Method3');
-        EMF = BackupEMF(EMF,WorkVariMod_Method3,iStep,'Method3');
+            % Calculate GFracEqui
+            if ~isempty(NewBulkMeth3)
+                TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,NewBulkMeth3);
 
-        
-        % Calculate GFracMeta
-        TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,Job.FracMolFrac.*LastStable.MOLES(Idx4Frac,:));
+                dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+                dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
 
-        dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-        dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{Idx4Frac}],'no'),'delimiter','');
+                [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+                [WorkVariMod_Method3] = Core_ReadResTheriak(yum,'');
 
-        % disp(LastStable.Minerals{i})
+                GFracEqui = WorkVariMod_Method3.Gsys;               % in J
 
-        [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
-
-        [WorkVariMod_Method3_META] = Core_ReadResTheriak(yum,'');
-
-        % Implement a check of minimization result here (important)
-        
-        GFracMeta = WorkVariMod_Method3_META.Gsys;
-
-        mf_MolesFracMeta = MolesFracMeta/(MolesFracMeta+NbMolesFracSyst);
-
-        G_MetaPar = mf_MolesFracMeta*(GFracMeta/MolesFracMeta) + (1-mf_MolesFracMeta)*(GFracEqui/NbMolesFracSyst);
-
-        G_Equi = GsysEqui(iStep)./NbMolesSyst_Equi(iStep);
-
-        Affinity_Method3(iStep) =  G_MetaPar - G_Equi;
+                ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_Method3,iStep,'Method3');
+                EMF = BackupEMF(EMF,WorkVariMod_Method3,iStep,'Method3');
 
 
+                % Calculate GFracMeta
+                TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,Job.FracMolFrac.*LastStable.MOLES(Idx4Frac,:));
+
+                dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+                dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{Idx4Frac}],'no'),'delimiter','');
+
+                % disp(LastStable.Minerals{i})
+
+                [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+                [WorkVariMod_Method3_META] = Core_ReadResTheriak(yum,'');
+
+                % Implement a check of minimization result here (important)
+
+                GFracMeta = WorkVariMod_Method3_META.Gsys;
+
+                mf_MolesFracMeta = MolesFracMeta/(MolesFracMeta+NbMolesFracSyst);
+
+                G_MetaPar = mf_MolesFracMeta*(GFracMeta/MolesFracMeta) + (1-mf_MolesFracMeta)*(GFracEqui/NbMolesFracSyst);
+
+                G_Equi = GsysEqui(iStep)./NbMolesSyst_Equi(iStep);
+
+                Affinity_Method3(iStep) =  G_MetaPar - G_Equi;
+            else
+                Affinity_Method3(iStep) = NaN;
+            end
+        end
         % Affinity_Method3 = G_MetaPar - G_Equi
         % Affinity_Method3 = MolesFracMeta * GFracMeta + (1-MolesFracMeta) * GFracEqui  -  G_Equi
-        
     end
+
+    if isequal(Job.Mode,2)
+        
+        
+        
+        
+        
+        keyboard
+    end
+
+
+
+
+
+
 
 end
 
@@ -392,13 +418,15 @@ tiledlayout('flow')
 % ylabel('A (J)')
 % title('\DeltaG_s_y_s of Method 1 (Pattison)')
 
-Affinity_Method1 = (GsytMethod1-GsysEqui)./NbMolesSyst_Equi;
-
-nexttile
-plot(Job.PT(:,1),Affinity_Method1,'o-b')
-xlabel('T (°C)')
-ylabel('A (J/mol)')
-title('A = -\DeltaG_s_y_s | Method 1 (J/mol)')
+if isequal(Job.Mode,1)
+    Affinity_Method1 = (GsytMethod1-GsysEqui)./NbMolesSyst_Equi;
+    
+    nexttile
+    plot(Job.PT(:,1),Affinity_Method1,'o-b')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    title('A = -\DeltaG_s_y_s | Method 1 (J/mol)')
+end
 
 % nexttile
 % plot(Job.PT(:,1),[0,diff(Affinity_Method1)./dT],'o-b')
@@ -419,39 +447,65 @@ title('A = -\DeltaG_m_e_t_a | Method 2 (J/mol)')
 % ylabel('A (J.mol^-^1.°C^-^1)')
 % title('First derivative of Affinity')
 
-nexttile
-plot(Job.PT(:,1),Affinity_Method3,'o-b')
-xlabel('T (°C)')
-ylabel('A (J/mol)')
-%title('Affinity using Method 3 (J/mol)')
-title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3 (J/mol)')
+if isequal(Job.Mode,1)
+    nexttile
+    plot(Job.PT(:,1),Affinity_Method3,'o-b')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    %title('Affinity using Method 3 (J/mol)')
+    title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3 (J/mol)')
 
 
-nexttile, hold on
-plot(Job.PT(:,1),Affinity_Method1,'-k')
-plot(Job.PT(:,1),Affinity_Method2,'--k')
-plot(Job.PT(:,1),Affinity_Method3,'-.k')
-xlabel('T (°C)')
-ylabel('A (J/mol)')
-title('Affinity plot')
-legend({'Method 1','Method 2','Method 3'})
+
+    nexttile, hold on
+    plot(Job.PT(:,1),Affinity_Method1,'-k')
+    plot(Job.PT(:,1),Affinity_Method2,'--k')
+    plot(Job.PT(:,1),Affinity_Method3,'-.k')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    title('Affinity plot')
+    legend({'Method 1','Method 2','Method 3'})
 
 
-DGgrt = -DGexcluded;
 
-nexttile
-plot(Job.PT(:,1),DGgrt,'o-k')
-xlabel('T (°C)')
-ylabel('G (J/mol of excluded phase)')
-title('\DeltaG_e_x_c_l_u_d_e_d')
+    DGgrt = -DGexcluded;
 
-% nexttile
-% plot(Job.PT(:,1),[0,diff(DGgrt)],'o-k')
-% xlabel('T (°C)')
-% ylabel('G (J.mol^-^1.°C^-^1)')
-% title('First derivative of \DeltaG_g_r_t of Method 3')
+    nexttile
+    plot(Job.PT(:,1),DGgrt,'o-k')
+    xlabel('T (°C)')
+    ylabel('G (J/mol of excluded phase)')
+    title('\DeltaG_e_x_c_l_u_d_e_d')
 
-if 0
+
+
+    % nexttile
+    % plot(Job.PT(:,1),[0,diff(DGgrt)],'o-k')
+    % xlabel('T (°C)')
+    % ylabel('G (J.mol^-^1.°C^-^1)')
+    % title('First derivative of \DeltaG_g_r_t of Method 3')
+
+    if 0
+        t = nexttile; hold on
+        ListChemPlot = {'MGO','MNO','CAO','FEO','AL2O3','SIO2'};
+        Compt = 0;
+        Eliminate = [];
+        for i = 1:length(ListChemPlot)
+            Where = find(ismember(El4ChemPot,ListChemPlot{i}));
+            if isempty(Where)
+                Compt = Compt + 1;
+                Eliminate(Compt) = i;
+            else
+                plot(Job.PT(:,1),DeltaChemPot(:,Where));
+            end
+        end
+        ListChemPlot(Eliminate) = [];
+        %t.YLim = [-100,100];
+        t.Box = 'on';
+        legend(ListChemPlot)
+        xlabel('T (°C)')
+        ylabel('\Delta\mu (J/mol)')
+    end
+
     t = nexttile; hold on
     ListChemPlot = {'MGO','MNO','CAO','FEO','AL2O3','SIO2'};
     Compt = 0;
@@ -466,32 +520,13 @@ if 0
         end
     end
     ListChemPlot(Eliminate) = [];
-    %t.YLim = [-100,100];
+    t.YLim = [-200,30];
     t.Box = 'on';
     legend(ListChemPlot)
     xlabel('T (°C)')
     ylabel('\Delta\mu (J/mol)')
-end
 
-t = nexttile; hold on
-ListChemPlot = {'MGO','MNO','CAO','FEO','AL2O3','SIO2'};
-Compt = 0;
-Eliminate = [];
-for i = 1:length(ListChemPlot)
-    Where = find(ismember(El4ChemPot,ListChemPlot{i}));
-    if isempty(Where)
-        Compt = Compt + 1;
-        Eliminate(Compt) = i;
-    else
-        plot(Job.PT(:,1),DeltaChemPot(:,Where));
-    end
 end
-ListChemPlot(Eliminate) = [];
-t.YLim = [-200,30];
-t.Box = 'on';
-legend(ListChemPlot)
-xlabel('T (°C)')
-ylabel('\Delta\mu (J/mol)')
 
 %open EMF
 %open ChemMineral
@@ -1169,11 +1204,33 @@ TheL = fgetl(fid);  % -----------------------
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
+Job.Mode = str2num(char(TheS{1}(2)));
+
+TheL = fgetl(fid);  % ------ Options (1)
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
 Job.FracMin = char(TheS{1}(2));
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
 Job.FracMolFrac = str2num(char(TheS{1}(2)));
+
+TheL = fgetl(fid);  % ------ Options (2)
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+NbInput = length(TheS{1})-1;
+for i = 1:NbInput
+    Job.EquiMin{i} = char(TheS{1}(1+i));
+end
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+NbInput = length(TheS{1})-1;
+for i = 1:NbInput
+    Job.EquiMolFrac(i) = str2num(char(TheS{1}(1+i)));
+end
 
 TheL = fgetl(fid);  % -----------------------
 
