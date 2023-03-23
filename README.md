@@ -36,7 +36,7 @@ An example of input file is provided bellow. Each entry is described in the tabl
 
 ```
 Version:			1.6
-TheriakPath:		/Users/pierrelanari/Geologie/Programs/TheriakDominoCompiled/theriak
+TheriakPath:			/Users/pierrelanari/Geologie/Programs/TheriakDominoCompiled/theriak
 Database:			JUN92.bs
 Metacalc:			JUN92_ExclPl.bs
 Bulk:				AL(0.30866)CA(0.02801)FE(0.098918)MG(0.071276)MN(0.0027789)NA(0.086481)SI(1.0716)TI(0.011115)K(0.090249)H(0.03744)O(?)   *  LB_3  
@@ -44,12 +44,12 @@ Bulk:				AL(0.30866)CA(0.02801)FE(0.098918)MG(0.071276)MN(0.0027789)NA(0.086481)
 Mode:				2		[1]NUCLEATION | [2]PERSISTENCE
 ------ Options (1)
 FracMin:			GARNET
-FracMolFrac:		0.2		
+FracMolFrac:			0.2		
 ------ Options (2)
 EquiMin:			BIOTITE
-EquiMolFrac:		1
+EquiMolFrac:			1
 -----------------------
-GenerateSeeds:		OFF
+GenerateSeeds:			OFF
 SaveOutput:			ON
 Print:				OFF		
 Pause:				OFF
