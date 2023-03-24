@@ -130,6 +130,9 @@ ChemMineral.Method2.Min(1).Comp = [];
 ChemMineral.Method3.MinNames = '';
 ChemMineral.Method3.ElNames = '';
 ChemMineral.Method3.Min(1).Comp = [];
+ChemMineral.Method3_2_EquiPart.MinNames = '';
+ChemMineral.Method3_2_EquiPart.ElNames = '';
+ChemMineral.Method3_2_EquiPart.Min(1).Comp = [];
 
 EMF.Equi.SSNames = {};
 EMF.Equi.Data(1).EM = {};
@@ -143,6 +146,10 @@ EMF.Method2.Data(1).EMprop = [];
 EMF.Method3.SSNames = {};
 EMF.Method3.Data(1).EM = {};
 EMF.Method3.Data(1).EMprop = [];
+EMF.Method3_2_EquiPart.SSNames = {};
+EMF.Method3_2_EquiPart.Data(1).EM = {};
+EMF.Method3_2_EquiPart.Data(1).EMprop = [];
+
 
 GsytMethod1 = zeros(1,size(Job.PT,1));
 % NbMolesSyst_Equi = zeros(1,size(Job.PT,1));
@@ -232,6 +239,7 @@ for iStep = 1:size(Job.PT,1)
         
         GsytMeta(iStep) = WorkVariMod.Gsys;
         GsysEqui(iStep) = WorkVariMod.Gsys;
+        GTotalPart(iStep) = WorkVariMod.Gsys/NbMolesSyst_Equi;
 
         NbMolesSyst_META(iStep) = NbMolesSyst_Equi(iStep);
 
@@ -268,7 +276,7 @@ for iStep = 1:size(Job.PT,1)
             ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,'Method2');
             EMF = BackupEMF(EMF,WorkVariMod_META,iStep,'Method2');
             
-            GminMeta(i) = WorkVariMod_META.Gsys;        % Gsys of theriak
+            GminMeta(i) = WorkVariMod_META.Gsys;        % Gsys of theriak in J.
             GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
 
             if Job.Print
@@ -330,7 +338,7 @@ for iStep = 1:size(Job.PT,1)
         
         if isequal(Job.Mode,1)
             % ---------------------------------------------------------------------
-            % Method 3 [Lanari; Affinity_Method2 = delta_G(reacted and unreacted phases)]
+            % Method 3 [Lanari; Affinity_Method3 = delta_G(reacted and unreacted phases)]
 
             % Calculate the reactive bulk composition (done at every iteration in case of re-equilibration)
             Idx4Frac = find(ismember(LastStable.Minerals,Job.FracMin));
@@ -342,8 +350,10 @@ for iStep = 1:size(Job.PT,1)
             DeltaMoles = NbMolesSyst - NbMolesFracSyst;
             MolesFracMeta = sum(Job.FracMolFrac.*LastStable.MOLES(Idx4Frac,:),2);
 
-            % Calculate GFracEqui
+            
             if ~isempty(NewBulkMeth3)
+
+                % Calculate GFracEqui
                 TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,NewBulkMeth3);
 
                 dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
@@ -387,19 +397,74 @@ for iStep = 1:size(Job.PT,1)
         end
         % Affinity_Method3 = G_MetaPar - G_Equi
         % Affinity_Method3 = MolesFracMeta * GFracMeta + (1-MolesFracMeta) * GFracEqui  -  G_Equi
+
+
+        if isequal(Job.Mode,2)
+
+            % ---------------------------------------------------------------------
+            % Method 3.2 [Lanari; Affinity_Method3_2 = delta_G(reacted and unreacted phases)]
+
+            BulkEquiPart = zeros(size(LastStable.MOLES(end,:)));
+
+            for i = 1:length(Job.EquiMin)
+                Idx4Frac = find(ismember(LastStable.Minerals,Job.EquiMin{i}));
+                if ~isempty(Idx4Frac)
+                    BulkEquiPart = BulkEquiPart + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac,:);
+                end
+            end
+
+            % Calculate GEquiPart
+            TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,BulkEquiPart);
+
+            dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+            dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
+
+            [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+            [WorkVariMod_GEquiPart] = Core_ReadResTheriak(yum,'');
+
+            GEquiPart = WorkVariMod_GEquiPart.Gsys;               % in J
+
+            ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_GEquiPart,iStep,'Method3_2_EquiPart');
+            EMF = BackupEMF(EMF,WorkVariMod_GEquiPart,iStep,'Method3_2_EquiPart');
+
+            % Calculate GMetaPart
+            GMetaPart = 0;
+            NbMolesMeta = 0;
+
+            for i = 1:length(LastStable.Minerals)-1
+                Idx = find(ismember(Job.EquiMin,LastStable.Minerals{i}));
+                
+                if isempty(Idx)
+                    GMetaPart = GMetaPart + GminMeta_SPEC(i);
+                    NbMolesMeta = NbMolesMeta + NbMolesSyst_META_TEMP_SPEC(i);
+                else
+                    GMetaPart = GMetaPart + (1-Job.EquiMolFrac(Idx))*GminMeta_SPEC(i);
+                    NbMolesMeta = NbMolesMeta + (1-Job.EquiMolFrac(Idx))*NbMolesSyst_META_TEMP_SPEC(i);
+                end
+            end
+
+            NbMolesTotalPart = NbMolesMeta+ WorkVariMod_GEquiPart.NbMolesSyst;
+
+            mf_MolesFracMeta = NbMolesMeta/(NbMolesMeta+WorkVariMod_GEquiPart.NbMolesSyst);
+            
+            GTotalPart(iStep) = mf_MolesFracMeta*(GMetaPart/NbMolesMeta) + (1-mf_MolesFracMeta)*(GEquiPart/WorkVariMod_GEquiPart.NbMolesSyst);
+
+            Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
+            
+
+            % mf_MolesFracMeta = MolesFracMeta/(MolesFracMeta+NbMolesFracSyst);
+            % G_MetaPar = mf_MolesFracMeta*(GFracMeta/MolesFracMeta) + (1-mf_MolesFracMeta)*(GFracEqui/NbMolesFracSyst);
+
+
+
+            %GTotalPart(iStep) = GEquiPart+GMetaPart;
+
+            %Affinity_Method3_2 = (GTotalPart-GsysEqui)./NbMolesSyst_Equi;        % in J.mol-1
+            
+        end
+
+
     end
-
-    if isequal(Job.Mode,2)
-        
-        
-        
-        
-        
-        keyboard
-    end
-
-
-
 
 
 
@@ -428,18 +493,41 @@ if isequal(Job.Mode,1)
     title('A = -\DeltaG_s_y_s | Method 1 (J/mol)')
 end
 
-% nexttile
-% plot(Job.PT(:,1),[0,diff(Affinity_Method1)./dT],'o-b')
-% xlabel('T (°C)')
-% ylabel('A (J.mol^-^1.°C^-^1)')
-% title('First derivative of -\DeltaG_s_y_s')
 
-nexttile
-plot(Job.PT(:,1),Affinity_Method2,'o-b')
-xlabel('T (°C)')
-ylabel('A (J/mol)')
-%title('Affinity using Method 2 (J/mol)')
-title('A = -\DeltaG_m_e_t_a | Method 2 (J/mol)')
+if isequal(Job.Mode,1)
+    nexttile
+    plot(Job.PT(:,1),Affinity_Method2,'o-b')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    %title('Affinity using Method 2 (J/mol)')
+    title('A = -\DeltaG_m_e_t_a | Method 2 (J/mol)')
+    ax = gca;
+    ax.YLim(1) = 0;
+    LimYaxis = ax.YLim(2);
+else
+    nexttile
+    plot(Affinity_Method2,'o-b')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    %title('Affinity using Method 2 (J/mol)')
+    title('A = -\DeltaG_m_e_t_a | Method 2 (J/mol)')
+
+    ax = gca;
+    ax.YLim(1) = 0;
+    LimYaxis = ax.YLim(2);
+
+    for i = 1:length(ax.XTick)
+        if ax.XTick(i) > 0 && ax.XTick(i) < size(Job.PT,1)
+            ax.XTickLabel{i} = num2str(Job.PT(ax.XTick(i),1));
+        else
+            ax.XTickLabel{i} = '';
+        end
+    end
+
+    ax.XTickMode = 'manual';
+
+end
+
 
 % nexttile
 % plot(Job.PT(:,1),[0,diff(Affinity_Method2)],'o-b')
@@ -526,14 +614,63 @@ if isequal(Job.Mode,1)
     xlabel('T (°C)')
     ylabel('\Delta\mu (J/mol)')
 
+else
+    
+    nexttile
+    plot(Affinity_Method3_2,'o-k')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3.2 (J/mol)')
+
+    ax = gca;
+    ax.YLim(1) = 0;
+    ax.YLim(2) = LimYaxis;
+
+    for i = 1:length(ax.XTick)
+        if ax.XTick(i) > 0 && ax.XTick(i) < size(Job.PT,1)
+            ax.XTickLabel{i} = num2str(Job.PT(ax.XTick(i),1));
+        else
+            ax.XTickLabel{i} = '';
+        end
+    end
+
+    ax.XTickMode = 'manual';
+
+    ax2 = nexttile; hold on
+    plot(Affinity_Method3_2,'o-k')
+    plot(Affinity_Method2,'o-b')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    title('Affinity (J/mol)')
+
+    %ax2 = gca;
+    ax2.YLim(1) = 0;
+    ax2.YLim(2) = LimYaxis;
+
+    ax2.XTick = ax.XTick;
+
+    for i = 1:length(ax2.XTick)
+        if ax2.XTick(i) > 0 && ax2.XTick(i) < size(Job.PT,1)
+            ax2.XTickLabel{i} = num2str(Job.PT(ax2.XTick(i),1));
+        else
+            ax2.XTickLabel{i} = '';
+        end
+    end
+
+    ax2.XTickMode = 'manual';
+
 end
 
 %open EMF
 %open ChemMineral
 
-if Job.SaveOutput
+if isequal(Job.Mode,1)
     f1.Position = [633,3,1085,1182];
-    
+else
+    f1.Position = [881,275,1308,421];
+end
+
+if Job.SaveOutput
     saveas(f1,'LastResults/Results.svg');
     saveas(f1,'LastResults/Results.fig');
 
@@ -925,6 +1062,16 @@ for i = 1:length(ASS_Names3)
     end
     Names4Moles{i} = NameTemp;
 end
+
+% % Fix duplicates (1.6) – This solution might cause other troubles...
+% for i = 1:length(Names4Moles)
+%     Idx4Duplicates = find(ismember(Names4Moles,Names4Moles{i}));
+%     if length(Idx4Duplicates) > 1
+%         for j = 1:length(Idx4Duplicates)
+%             Names4Moles{Idx4Duplicates(j)} = ASS_Names3{Idx4Duplicates(j)};
+%         end
+%     end
+% end
 
 WorkVariMod(1).Names4Moles = Names4Moles;
 WorkVariMod(1).MOLES = ASS_COMP3;
