@@ -409,7 +409,13 @@ for iStep = 1:size(Job.PT,1)
             for i = 1:length(Job.EquiMin)
                 Idx4Frac = find(ismember(LastStable.Minerals,Job.EquiMin{i}));
                 if ~isempty(Idx4Frac)
-                    BulkEquiPart = BulkEquiPart + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac,:);
+                    if length(Idx4Frac) > 1
+                        for j = 1:length(Idx4Frac)
+                            BulkEquiPart = BulkEquiPart + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac(j),:);
+                        end
+                    else
+                        BulkEquiPart = BulkEquiPart + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac,:);
+                    end
                 end
             end
 
@@ -417,7 +423,7 @@ for iStep = 1:size(Job.PT,1)
             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,BulkEquiPart);
 
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-            dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
+            dlmwrite('XBIN',char(Job.Database,'no'),'delimiter','');
 
             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
             [WorkVariMod_GEquiPart] = Core_ReadResTheriak(yum,'');
@@ -433,7 +439,6 @@ for iStep = 1:size(Job.PT,1)
 
             for i = 1:length(LastStable.Minerals)-1
                 Idx = find(ismember(Job.EquiMin,LastStable.Minerals{i}));
-                
                 if isempty(Idx)
                     GMetaPart = GMetaPart + GminMeta_SPEC(i);
                     NbMolesMeta = NbMolesMeta + NbMolesSyst_META_TEMP_SPEC(i);
@@ -616,25 +621,25 @@ if isequal(Job.Mode,1)
 
 else
     
-    nexttile
-    plot(Affinity_Method3_2,'o-k')
-    xlabel('T (°C)')
-    ylabel('A (J/mol)')
-    title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3.2 (J/mol)')
-
-    ax = gca;
-    ax.YLim(1) = 0;
-    ax.YLim(2) = LimYaxis;
-
-    for i = 1:length(ax.XTick)
-        if ax.XTick(i) > 0 && ax.XTick(i) < size(Job.PT,1)
-            ax.XTickLabel{i} = num2str(Job.PT(ax.XTick(i),1));
-        else
-            ax.XTickLabel{i} = '';
-        end
-    end
-
-    ax.XTickMode = 'manual';
+%     nexttile
+%     plot(Affinity_Method3_2,'o-k')
+%     xlabel('T (°C)')
+%     ylabel('A (J/mol)')
+%     title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3.2 (J/mol)')
+% 
+%     ax = gca;
+%     ax.YLim(1) = 0;
+%     ax.YLim(2) = LimYaxis;
+% 
+%     for i = 1:length(ax.XTick)
+%         if ax.XTick(i) > 0 && ax.XTick(i) < size(Job.PT,1)
+%             ax.XTickLabel{i} = num2str(Job.PT(ax.XTick(i),1));
+%         else
+%             ax.XTickLabel{i} = '';
+%         end
+%     end
+% 
+%     ax.XTickMode = 'manual';
 
     ax2 = nexttile; hold on
     plot(Affinity_Method3_2,'o-k')
