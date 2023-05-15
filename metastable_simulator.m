@@ -508,12 +508,14 @@ tiledlayout('flow')
 % ylabel('A (J)')
 % title('\DeltaG_s_y_s of Method 1 (Pattison)')
 
+ModePlot = 2;
+
 if isequal(Job.Mode,1)
     Affinity_Method1 = (GsytMethod1-GsysEqui)./NbMolesSyst_Equi;
     
     nexttile
-    plot(Job.PT(:,1),Affinity_Method1,'o-b')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),Affinity_Method1,'o-b')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     title('A = -\DeltaG_s_y_s | Method 1 (J/mol)')
 end
@@ -521,8 +523,8 @@ end
 
 if isequal(Job.Mode,1)
     nexttile
-    plot(Job.PT(:,1),Affinity_Method2,'o-b')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),Affinity_Method2,'o-b')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     %title('Affinity using Method 2 (J/mol)')
     title('A = -\DeltaG_m_e_t_a | Method 2 (J/mol)')
@@ -562,17 +564,17 @@ end
 
 if isequal(Job.Mode,1)
     nexttile;
-    plot(Job.PT(:,1),Affinity_Method3,'o-b')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),Affinity_Method3,'o-b')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     %title('Affinity using Method 3 (J/mol)')
     title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3 (J/mol)')
 
     n2 = nexttile; hold on
-    plot(Job.PT(:,1),Affinity_Method1,'-k')
-    plot(Job.PT(:,1),Affinity_Method2,'--k')
-    plot(Job.PT(:,1),Affinity_Method3,'-.k')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),Affinity_Method1,'-k')
+    plot(Job.PT(:,ModePlot),Affinity_Method2,'--k')
+    plot(Job.PT(:,ModePlot),Affinity_Method3,'-.k')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     title('Affinity plot')
     legend({'Method 1','Method 2','Method 3'})
@@ -581,8 +583,8 @@ if isequal(Job.Mode,1)
     DGgrt = -DGexcluded;
 
     nexttile
-    plot(Job.PT(:,1),DGgrt,'o-k')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),DGgrt,'o-k')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('G (J/mol of excluded phase)')
     title('\DeltaG_e_x_c_l_u_d_e_d')
 
@@ -605,14 +607,14 @@ if isequal(Job.Mode,1)
                 Compt = Compt + 1;
                 Eliminate(Compt) = i;
             else
-                plot(Job.PT(:,1),DeltaChemPot(:,Where));
+                plot(Job.PT(:,ModePlot),DeltaChemPot(:,Where));
             end
         end
         ListChemPlot(Eliminate) = [];
         %t.YLim = [-100,100];
         t.Box = 'on';
         legend(ListChemPlot)
-        xlabel('T (°C)')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('\Delta\mu (J/mol)')
     end
 
@@ -626,14 +628,14 @@ if isequal(Job.Mode,1)
             Compt = Compt + 1;
             Eliminate(Compt) = i;
         else
-            plot(Job.PT(:,1),DeltaChemPot(:,Where));
+            plot(Job.PT(:,ModePlot),DeltaChemPot(:,Where));
         end
     end
     ListChemPlot(Eliminate) = [];
     t.YLim = [-200,30];
     t.Box = 'on';
     legend(ListChemPlot)
-    xlabel('T (°C)')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('\Delta\mu (J/mol)')
 
     if 1
@@ -643,41 +645,41 @@ if isequal(Job.Mode,1)
         tiledlayout('flow')
 
         nexttile
-        plot(Job.PT(:,1),DGgrt,'o-k')
-        xlabel('T (°C)')
+        plot(Job.PT(:,ModePlot),DGgrt,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('G (J/mol of excluded phase)')
         title('\DeltaG_e_x_c_l_u_d_e_d')
 
         nexttile
-        plot(Job.PT(:,1),DGgrt/12,'o-k')
-        xlabel('T (°C)')
+        plot(Job.PT(:,ModePlot),DGgrt/12,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('G (J/mol/O_g_r_t)')
         title('\DeltaG_e_x_c_l_u_d_e_d')
 
         nexttile
-        plot(Job.PT(:,1),DGgrt./NbMolesSyst_Equi,'o-k')
-        xlabel('T (°C)')
+        plot(Job.PT(:,ModePlot),DGgrt./NbMolesSyst_Equi,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('G (J/mol_s_y_s)')
         title('\DeltaG_e_x_c_l_u_d_e_d')
 
         nexttile
-        plot(Job.PT(:,1),(DGgrt'/12)./(Job.PT(:,1)-Job.PT(1,1)),'o-k')
-        xlabel('T (°C)')
+        plot(Job.PT(:,ModePlot),(DGgrt'/12)./(Job.PT(:,1)-Job.PT(1,1)),'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('G (J/mol/O_g_r_t/K)')
         title('\DeltaG_e_x_c_l_u_d_e_d')
 
         nexttile
         Idx = find(ismember(ChemMineral.Equi.MinNames,Job.OverstepMin));
-        plot(Job.PT(:,1),DGgrt.*ChemMineral.Equi.Min(Idx).Moles./NbMolesSyst_Equi,'o-k')
-        xlabel('T (°C)')
+        plot(Job.PT(:,ModePlot),DGgrt.*ChemMineral.Equi.Min(Idx).Moles./NbMolesSyst_Equi,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('DG (J/mol)')
         title('\DeltaG_e_x_c_l_u_d_e_d')
 
         n22 = nexttile;
         copyobj(n2.Children,n22);
         hold on
-        plot(Job.PT(:,1),DGgrt.*ChemMineral.Equi.Min(Idx).Moles./NbMolesSyst_Equi,'o-k')
-        xlabel('T (°C)')
+        plot(Job.PT(:,ModePlot),DGgrt.*ChemMineral.Equi.Min(Idx).Moles./NbMolesSyst_Equi,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('DG (J/mol)')
         title('Comparison with affinities')
 
