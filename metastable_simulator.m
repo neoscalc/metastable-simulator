@@ -8,13 +8,14 @@ function [] = metastable_simulator(varargin)
 close all
 clc
 
-version = '1.6';
+version = '1.7';
 % --
 Compatibility = '1.6';
 
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
+% version 1.7   May 2023    Syros, calculate dG_phase
 % version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
 % version 1.5   Feb 2023    Cavalaire, new calculation "partial"
 % version 1.4   Feb 2023    Cavalaire, improved start file
@@ -64,16 +65,21 @@ end
 
 % -- Save results in a separate folder (LastResults)
 if Job.SaveOutput
-    if isequal(exist([cd,'/LastResults']),7)
+    if isequal(exist(fullfile(cd,'LastResults')),7)
         Reply = questdlg('Do you want to replace LastResults?','Modeling','Yes','No (cancel)','Yes');
         switch Reply
             case 'Yes'
-                rmdir([cd,'/LastResults'],'s');
+                rmdir(fullfile(cd,'LastResults'),'s');
             otherwise
                 return
         end
     end
     [Success,Message,MessageID] = mkdir('LastResults');
+    
+    % copy input file and databases
+    Success = copyfile(fullfile(cd,'MetastabilitySimulatorIN.txt'),fullfile(cd,'LastResults','MetastabilitySimulatorIN.txt'));
+    Success = copyfile(fullfile(cd,Job.Database),fullfile(cd,'LastResults',Job.Database));
+    Success = copyfile(fullfile(cd,Job.MetaCalc),fullfile(cd,'LastResults',Job.MetaCalc));
 end
 % --
 
@@ -192,6 +198,11 @@ for iStep = 1:size(Job.PT,1)
         
         GsytMethod1(iStep) = WorkVariMod_Method1.Gsys;              % in J
         
+        % --------------------------------------------------------------------- 
+        % DGE Method "DGexcluded" with G of the excluded phase (in J.mol)
+        %     This is method 3 of Dave Pattison
+        %     Warning, it is not an Affinity
+        %
         DGexcluded(iStep) = WorkVariMod_Method1.DGexcluded;
         NbMolesSyst_1(iStep) = WorkVariMod_Method1.NbMolesSyst;
         
@@ -224,13 +235,14 @@ for iStep = 1:size(Job.PT,1)
             ChemPot2(WhereChemPot) = WorkVariMod_Method1.ChemPot(i);
         end
         DeltaChemPot(end+1,1:length(ChemPot2)) = ChemPot1-ChemPot2;
+
     end
 
 
     % ---------------------------------------------------------------------
     % Check for system behaviour (user input: 0=metastable; 1=equilibrated)
     
-    if isequal(Job.PT(iStep,3),1)
+    if isequal(Job.PT(iStep,3),1)                            % Equilibrated
         LastStable.ID = iStep;
         LastStable.Minerals = WorkVariMod.Names4Moles;
         LastStable.Elem = WorkVariMod.Els;
@@ -243,7 +255,7 @@ for iStep = 1:size(Job.PT,1)
 
         NbMolesSyst_META(iStep) = NbMolesSyst_Equi(iStep);
 
-    else
+    else                                                       % Metastable
         
         % ---------------------------------------------------------------------
         % Method 2 [Pattison; Affinity = delta_G(unreacted phases)]
@@ -398,7 +410,6 @@ for iStep = 1:size(Job.PT,1)
         % Affinity_Method3 = G_MetaPar - G_Equi
         % Affinity_Method3 = MolesFracMeta * GFracMeta + (1-MolesFracMeta) * GFracEqui  -  G_Equi
 
-
         if isequal(Job.Mode,2)
 
             % ---------------------------------------------------------------------
@@ -548,8 +559,6 @@ if isequal(Job.Mode,1)
     %title('Affinity using Method 3 (J/mol)')
     title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3 (J/mol)')
 
-
-
     nexttile, hold on
     plot(Job.PT(:,1),Affinity_Method1,'-k')
     plot(Job.PT(:,1),Affinity_Method2,'--k')
@@ -558,7 +567,6 @@ if isequal(Job.Mode,1)
     ylabel('A (J/mol)')
     title('Affinity plot')
     legend({'Method 1','Method 2','Method 3'})
-
 
 
     DGgrt = -DGexcluded;
@@ -618,6 +626,37 @@ if isequal(Job.Mode,1)
     legend(ListChemPlot)
     xlabel('T (°C)')
     ylabel('\Delta\mu (J/mol)')
+
+    if 1
+        % Additional plot 
+
+        f2 = figure;
+        tiledlayout('flow')
+
+        nexttile
+        plot(Job.PT(:,1),DGgrt,'o-k')
+        xlabel('T (°C)')
+        ylabel('G (J/mol of excluded phase)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        nexttile
+        plot(Job.PT(:,1),DGgrt/12,'o-k')
+        xlabel('T (°C)')
+        ylabel('G (J/mol/O_g_r_t)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        nexttile
+        plot(Job.PT(:,1),(DGgrt'/12)./(Job.PT(:,1)-Job.PT(1,1)),'o-k')
+        xlabel('T (°C)')
+        ylabel('G (J/mol/O_g_r_t/K)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        if Job.SaveOutput
+            saveas(f2,'LastResults/deltaG_excluded.svg');
+            saveas(f2,'LastResults/deltaG_excluded.fig');
+        end
+        
+    end
 
 else
     
@@ -681,14 +720,14 @@ if Job.SaveOutput
 
     
     % Additional figures only for saving
-    f2 = figure;
+    f3 = figure;
     plot(Job.PT(:,1),Job.PT(:,2),'-ok','MarkerFaceColor',[0.5,0.7,0.8])
     axis([min(Job.PT(:,1))-20 max(Job.PT(:,1))+20 min(Job.PT(:,2))-200 max(Job.PT(:,2))+200])
     xlabel('Temperature (°C)')
     ylabel('Pressure (bar)')
     
-    saveas(f2,'LastResults/PT.svg');
-    saveas(f2,'LastResults/PT.fig');
+    saveas(f3,'LastResults/PT.svg');
+    saveas(f3,'LastResults/PT.fig');
 
     
     % Export compositions
