@@ -767,6 +767,14 @@ if Job.SaveOutput
     save('LastResults/EMF.mat','EMF');
     save('LastResults/ChemMineral.mat','ChemMineral');
     save('LastResults/Job.mat','Job');
+
+
+    if isequal(Job.Mode,1)
+        AffinityData.Labels = {'Temperature (°C)','Pressure (GPa)','Reactivity','Affinity_Method1','Affinity_Method2','Affinity_Method3'};
+        AffinityData.Data = [Job.PT,Affinity_Method1',Affinity_Method2',Affinity_Method3'];
+        save('LastResults/AffinityData.mat','AffinityData');
+    end
+
 end
 
 
