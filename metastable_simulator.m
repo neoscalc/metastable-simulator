@@ -8,13 +8,14 @@ function [] = metastable_simulator(varargin)
 close all
 clc
 
-version = '1.6';
+version = '1.7';
 % --
-Compatibility = '1.6';
+Compatibility = '1.7';
 
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
+% version 1.7   May 2023    Syros, calculate dG_phase, add options
 % version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
 % version 1.5   Feb 2023    Cavalaire, new calculation "partial"
 % version 1.4   Feb 2023    Cavalaire, improved start file
@@ -64,16 +65,21 @@ end
 
 % -- Save results in a separate folder (LastResults)
 if Job.SaveOutput
-    if isequal(exist([cd,'/LastResults']),7)
+    if isequal(exist(fullfile(cd,'LastResults')),7)
         Reply = questdlg('Do you want to replace LastResults?','Modeling','Yes','No (cancel)','Yes');
         switch Reply
             case 'Yes'
-                rmdir([cd,'/LastResults'],'s');
+                rmdir(fullfile(cd,'LastResults'),'s');
             otherwise
                 return
         end
     end
     [Success,Message,MessageID] = mkdir('LastResults');
+    
+    % copy input file and databases
+    Success = copyfile(fullfile(cd,'MetastabilitySimulatorIN.txt'),fullfile(cd,'LastResults','MetastabilitySimulatorIN.txt'));
+    Success = copyfile(fullfile(cd,Job.Database),fullfile(cd,'LastResults',Job.Database));
+    Success = copyfile(fullfile(cd,Job.MetaCalc),fullfile(cd,'LastResults',Job.MetaCalc));
 end
 % --
 
@@ -121,18 +127,23 @@ DeltaChemPot = [];
 ChemMineral.Equi.MinNames = '';
 ChemMineral.Equi.ElNames = '';
 ChemMineral.Equi.Min(1).Comp = [];
+ChemMineral.Equi.Min(1).Moles = [];
 ChemMineral.Method1.MinNames = '';
 ChemMineral.Method1.ElNames = '';
 ChemMineral.Method1.Min(1).Comp = [];
+ChemMineral.Method1.Min(1).Moles = [];
 ChemMineral.Method2.MinNames = '';
 ChemMineral.Method2.ElNames = '';
 ChemMineral.Method2.Min(1).Comp = [];
+ChemMineral.Method2.Min(1).Moles = [];
 ChemMineral.Method3.MinNames = '';
 ChemMineral.Method3.ElNames = '';
 ChemMineral.Method3.Min(1).Comp = [];
+ChemMineral.Method3.Min(1).Moles = [];
 ChemMineral.Method3_2_EquiPart.MinNames = '';
 ChemMineral.Method3_2_EquiPart.ElNames = '';
 ChemMineral.Method3_2_EquiPart.Min(1).Comp = [];
+ChemMineral.Method3_2_EquiPart.Min(1).Moles = [];
 
 EMF.Equi.SSNames = {};
 EMF.Equi.Data(1).EM = {};
@@ -168,13 +179,28 @@ for iStep = 1:size(Job.PT,1)
     % EQUI – Equilibrium calculation (minimum G at P and T)
     dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',Job.Bulk,'   * '] ),'delimiter','');
     dlmwrite('XBIN',char(Job.Database,'no'),'delimiter','');
+    
+    if isequal(Job.PT(iStep,3),-1) % Force OverstepMin not to be stable (system behaviour: -1)
+        dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
+    end
+    
+    if Job.Print
+        disp(' ')
+        disp('------------------------------------------------------------------------------')
+        disp('*** Equilibrium calculation: ')
+        tic
+    end
 
     [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
     [WorkVariMod] = Core_ReadResTheriak(yum,'');
     
     NbMolesSyst_Equi(iStep) = WorkVariMod.NbMolesSyst;
 
+    Print_Assemblage(WorkVariMod,'EQUILIBRIUM');
+
     if Job.Print
+        disp(' '),disp(' '),disp(' ')
+        toc
         Print_Results(WorkVariMod,Job.Bulk,'EQUILIBRIUM');
     end
 
@@ -192,6 +218,11 @@ for iStep = 1:size(Job.PT,1)
         
         GsytMethod1(iStep) = WorkVariMod_Method1.Gsys;              % in J
         
+        % --------------------------------------------------------------------- 
+        % DGE Method "DGexcluded" with G of the excluded phase (in J.mol)
+        %     This is method 3 of Dave Pattison
+        %     Warning, it is not an Affinity
+        %
         DGexcluded(iStep) = WorkVariMod_Method1.DGexcluded;
         NbMolesSyst_1(iStep) = WorkVariMod_Method1.NbMolesSyst;
         
@@ -224,13 +255,14 @@ for iStep = 1:size(Job.PT,1)
             ChemPot2(WhereChemPot) = WorkVariMod_Method1.ChemPot(i);
         end
         DeltaChemPot(end+1,1:length(ChemPot2)) = ChemPot1-ChemPot2;
+
     end
 
 
     % ---------------------------------------------------------------------
     % Check for system behaviour (user input: 0=metastable; 1=equilibrated)
     
-    if isequal(Job.PT(iStep,3),1)
+    if isequal(Job.PT(iStep,3),1) || isequal(Job.PT(iStep,3),-1)   % Equilibrated
         LastStable.ID = iStep;
         LastStable.Minerals = WorkVariMod.Names4Moles;
         LastStable.Elem = WorkVariMod.Els;
@@ -243,7 +275,7 @@ for iStep = 1:size(Job.PT,1)
 
         NbMolesSyst_META(iStep) = NbMolesSyst_Equi(iStep);
 
-    else
+    else                                                       % Metastable
         
         % ---------------------------------------------------------------------
         % Method 2 [Pattison; Affinity = delta_G(unreacted phases)]
@@ -260,14 +292,25 @@ for iStep = 1:size(Job.PT,1)
         DeltaG = zeros(length(LastStable.Minerals)-1,1);
         DeltaGPer = zeros(length(LastStable.Minerals)-1,1);
 
-        for i = 1:length(LastStable.Minerals)-1
+        if Job.Print
+            disp(' ')
+            disp('------------------------------------------------------------------------------')
+            disp('*** Disequilibrium calculation (method 2): ')
+            tic
+        end
 
+        for i = 1:length(LastStable.Minerals)-1
+            
             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
             
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
             dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
 
             % disp(LastStable.Minerals{i})
+
+            if Job.Print
+                tic
+            end
             
             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
 
@@ -280,6 +323,8 @@ for iStep = 1:size(Job.PT,1)
             GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
 
             if Job.Print
+                disp(' '), disp(' '), disp(' ')
+                toc
                 Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
             end
 
@@ -309,6 +354,8 @@ for iStep = 1:size(Job.PT,1)
 
                 fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
                 fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
+
+                % keyboard
             end
 
             if Job.Print
@@ -332,9 +379,6 @@ for iStep = 1:size(Job.PT,1)
 
         Affinity_Method2 = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst_Equi;
 
-        if Job.Pause
-            keyboard
-        end
         
         if isequal(Job.Mode,1)
             % ---------------------------------------------------------------------
@@ -398,11 +442,17 @@ for iStep = 1:size(Job.PT,1)
         % Affinity_Method3 = G_MetaPar - G_Equi
         % Affinity_Method3 = MolesFracMeta * GFracMeta + (1-MolesFracMeta) * GFracEqui  -  G_Equi
 
-
         if isequal(Job.Mode,2)
 
             % ---------------------------------------------------------------------
             % Method 3.2 [Lanari; Affinity_Method3_2 = delta_G(reacted and unreacted phases)]
+
+            if Job.Print
+                disp(' ')
+                disp('------------------------------------------------------------------------------')
+                disp('*** Disequilibrium calculation (PARTIAL method 3.2): ')
+                tic
+            end
 
             BulkEquiPart = zeros(size(LastStable.MOLES(end,:)));
 
@@ -425,8 +475,20 @@ for iStep = 1:size(Job.PT,1)
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
             dlmwrite('XBIN',char(Job.Database,'no'),'delimiter','');
 
+            if Job.Print
+                tic
+            end
+
             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
             [WorkVariMod_GEquiPart] = Core_ReadResTheriak(yum,'');
+
+            Print_Assemblage(WorkVariMod_GEquiPart,'LOCAL EQUIL');
+
+            if Job.Print
+                disp(' '), disp(' '), disp(' ')
+                toc
+                Print_Results(WorkVariMod_GEquiPart,TempBulk,'PARTIAL EQUILIBRATED SYSTEM');
+            end
 
             GEquiPart = WorkVariMod_GEquiPart.Gsys;               % in J
 
@@ -456,22 +518,19 @@ for iStep = 1:size(Job.PT,1)
 
             Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
             
-
             % mf_MolesFracMeta = MolesFracMeta/(MolesFracMeta+NbMolesFracSyst);
             % G_MetaPar = mf_MolesFracMeta*(GFracMeta/MolesFracMeta) + (1-mf_MolesFracMeta)*(GFracEqui/NbMolesFracSyst);
-
-
 
             %GTotalPart(iStep) = GEquiPart+GMetaPart;
 
             %Affinity_Method3_2 = (GTotalPart-GsysEqui)./NbMolesSyst_Equi;        % in J.mol-1
             
         end
-
-
     end
 
-
+    if Job.Pause
+        keyboard
+    end
 
 
 end
@@ -488,12 +547,14 @@ tiledlayout('flow')
 % ylabel('A (J)')
 % title('\DeltaG_s_y_s of Method 1 (Pattison)')
 
+ModePlot = 1;    % 1 is T and 2 is P
+
 if isequal(Job.Mode,1)
     Affinity_Method1 = (GsytMethod1-GsysEqui)./NbMolesSyst_Equi;
     
     nexttile
-    plot(Job.PT(:,1),Affinity_Method1,'o-b')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),Affinity_Method1,'o-b')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     title('A = -\DeltaG_s_y_s | Method 1 (J/mol)')
 end
@@ -501,8 +562,8 @@ end
 
 if isequal(Job.Mode,1)
     nexttile
-    plot(Job.PT(:,1),Affinity_Method2,'o-b')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),Affinity_Method2,'o-b')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     %title('Affinity using Method 2 (J/mol)')
     title('A = -\DeltaG_m_e_t_a | Method 2 (J/mol)')
@@ -541,31 +602,28 @@ end
 % title('First derivative of Affinity')
 
 if isequal(Job.Mode,1)
-    nexttile
-    plot(Job.PT(:,1),Affinity_Method3,'o-b')
-    xlabel('T (°C)')
+    nexttile;
+    plot(Job.PT(:,ModePlot),Affinity_Method3,'o-b')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     %title('Affinity using Method 3 (J/mol)')
     title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3 (J/mol)')
 
-
-
-    nexttile, hold on
-    plot(Job.PT(:,1),Affinity_Method1,'-k')
-    plot(Job.PT(:,1),Affinity_Method2,'--k')
-    plot(Job.PT(:,1),Affinity_Method3,'-.k')
-    xlabel('T (°C)')
+    n2 = nexttile; hold on
+    plot(Job.PT(:,ModePlot),Affinity_Method1,'-k')
+    plot(Job.PT(:,ModePlot),Affinity_Method2,'--k')
+    plot(Job.PT(:,ModePlot),Affinity_Method3,'-.k')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('A (J/mol)')
     title('Affinity plot')
     legend({'Method 1','Method 2','Method 3'})
 
 
-
     DGgrt = -DGexcluded;
 
     nexttile
-    plot(Job.PT(:,1),DGgrt,'o-k')
-    xlabel('T (°C)')
+    plot(Job.PT(:,ModePlot),DGgrt,'o-k')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('G (J/mol of excluded phase)')
     title('\DeltaG_e_x_c_l_u_d_e_d')
 
@@ -588,14 +646,14 @@ if isequal(Job.Mode,1)
                 Compt = Compt + 1;
                 Eliminate(Compt) = i;
             else
-                plot(Job.PT(:,1),DeltaChemPot(:,Where));
+                plot(Job.PT(:,ModePlot),DeltaChemPot(:,Where));
             end
         end
         ListChemPlot(Eliminate) = [];
         %t.YLim = [-100,100];
         t.Box = 'on';
         legend(ListChemPlot)
-        xlabel('T (°C)')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
         ylabel('\Delta\mu (J/mol)')
     end
 
@@ -609,15 +667,69 @@ if isequal(Job.Mode,1)
             Compt = Compt + 1;
             Eliminate(Compt) = i;
         else
-            plot(Job.PT(:,1),DeltaChemPot(:,Where));
+            plot(Job.PT(:,ModePlot),DeltaChemPot(:,Where));
         end
     end
     ListChemPlot(Eliminate) = [];
     t.YLim = [-200,30];
     t.Box = 'on';
     legend(ListChemPlot)
-    xlabel('T (°C)')
+    if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
     ylabel('\Delta\mu (J/mol)')
+
+    if 1
+        % Additional plot 
+
+        f2 = figure;
+        tiledlayout('flow')
+
+        nexttile
+        plot(Job.PT(:,ModePlot),DGgrt,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
+        ylabel('G (J/mol of excluded phase)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        nexttile
+        plot(Job.PT(:,ModePlot),DGgrt/12,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
+        ylabel('G (J/mol/O_g_r_t)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        nexttile
+        plot(Job.PT(:,ModePlot),DGgrt./NbMolesSyst_Equi,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
+        ylabel('G (J/mol_s_y_s)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        nexttile
+        plot(Job.PT(:,ModePlot),(DGgrt'/12)./(Job.PT(:,1)-Job.PT(1,1)),'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
+        ylabel('G (J/mol/O_g_r_t/K)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        nexttile
+        Idx = find(ismember(ChemMineral.Equi.MinNames,Job.OverstepMin));
+        plot(Job.PT(:,ModePlot),DGgrt.*ChemMineral.Equi.Min(Idx).Moles./NbMolesSyst_Equi,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
+        ylabel('DG (J/mol)')
+        title('\DeltaG_e_x_c_l_u_d_e_d')
+
+        n22 = nexttile;
+        copyobj(n2.Children,n22);
+        hold on
+        plot(Job.PT(:,ModePlot),DGgrt.*ChemMineral.Equi.Min(Idx).Moles./NbMolesSyst_Equi,'o-k')
+        if isequal(ModePlot,1), xlabel('T (°C)'), else, xlabel('P (GPa)'), end
+        ylabel('DG (J/mol)')
+        title('Comparison with affinities')
+
+        f2.Position = [633,3,1085,1182];
+
+        if Job.SaveOutput
+            saveas(f2,'LastResults/deltaG_excluded.svg');
+            saveas(f2,'LastResults/deltaG_excluded.fig');
+        end
+        
+    end
 
 else
     
@@ -679,27 +791,34 @@ if Job.SaveOutput
     saveas(f1,'LastResults/Results.svg');
     saveas(f1,'LastResults/Results.fig');
 
-    
     % Additional figures only for saving
-    f2 = figure;
+    f3 = figure;
     plot(Job.PT(:,1),Job.PT(:,2),'-ok','MarkerFaceColor',[0.5,0.7,0.8])
     axis([min(Job.PT(:,1))-20 max(Job.PT(:,1))+20 min(Job.PT(:,2))-200 max(Job.PT(:,2))+200])
     xlabel('Temperature (°C)')
     ylabel('Pressure (bar)')
     
-    saveas(f2,'LastResults/PT.svg');
-    saveas(f2,'LastResults/PT.fig');
+    saveas(f3,'LastResults/PT.svg');
+    saveas(f3,'LastResults/PT.fig');
 
     
     % Export compositions
     save('LastResults/EMF.mat','EMF');
     save('LastResults/ChemMineral.mat','ChemMineral');
     save('LastResults/Job.mat','Job');
+
+
+    if isequal(Job.Mode,1)
+        AffinityData.Labels = {'Temperature (°C)','Pressure (GPa)','Reactivity','Affinity_Method1','Affinity_Method2','Affinity_Method3'};
+        AffinityData.Data = [Job.PT,Affinity_Method1',Affinity_Method2',Affinity_Method3'];
+        save('LastResults/AffinityData.mat','AffinityData');
+    end
+
 end
 
 
 
-
+disp(' ')
 keyboard
 
 
@@ -726,6 +845,20 @@ end
 
 fprintf('\n%s\n',['Gsys = ',num2str(WorkVariMod.Gsys),' J for ',num2str(WorkVariMod.NbMolesSyst), ' moles = ',num2str(WorkVariMod.Gsys/WorkVariMod.NbMolesSyst),' J/mol'])
 
+end
+
+
+function Print_Assemblage(WorkVariMod,Mode)
+
+MinAsmText = '';
+for i = 1:length(WorkVariMod.Names4Apfu)
+    MinAsmText = [MinAsmText,char(WorkVariMod.Names4Apfu{i}),'(',num2str(WorkVariMod.NbMolesMin(i),4),')'];
+    if i <length(WorkVariMod.Names4Apfu)
+        MinAsmText = [MinAsmText,' '];
+    end
+end
+
+fprintf('\n%s',['Assemblage (',Mode,'): [',num2str(WorkVariMod.NbMolesSyst,3),' mol] ',MinAsmText]);
 end
 
 
@@ -785,6 +918,11 @@ for i = 1:length(WorkVariMod.Names4Moles)
     end
     
     ChemMineral.(Case).Min(IndMin).Comp(iStep,IndEl) = WorkVariMod.MOLES(i,:);
+    
+    if i < length(WorkVariMod.Names4Moles)
+        ChemMineral.(Case).Min(IndMin).Moles(iStep) = WorkVariMod.NbMolesMin(i);
+    end
+
 end
 
 end
@@ -1046,12 +1184,28 @@ for i=1:length(VOL_Names)
     WorkVariMod(1).Dens(i) = VOL_Dens(i);
 end
 
-if ~length(VOL_Names)
+if ~length(VOL_Names)   % Special case here...
     WorkVariMod(1).Indice = [];
     WorkVariMod(1).Names = '';
     WorkVariMod(1).COMP = [];
     WorkVariMod(1).VolFrac = [];
     WorkVariMod(1).Dens = [];
+
+    for i = 1:length(ASS_Names2)
+        WhereUnd = find(ismember(char(ASS_Names2{i}),'_'));
+        if isequal(length(WhereUnd),1)
+            NameTemp = ASS_Names2{i}(1:WhereUnd(1)-1);
+        elseif isequal(length(WhereUnd),2)
+            NameTemp = ASS_Names2{i}(1:WhereUnd(2)-1);
+            NameTemp(WhereUnd(1)) = ' ';
+        else
+            NameTemp = char(ASS_Names2{i});
+        end
+        Names4APFU{i} = NameTemp;
+    end
+
+    WorkVariMod(1).Names4Apfu = Names4APFU;
+    WorkVariMod(1).APFU = ASS_COMP2;
 end
 
 % Addition of MOLES --------------------------------------------
@@ -1081,6 +1235,8 @@ end
 WorkVariMod(1).Names4Moles = Names4Moles;
 WorkVariMod(1).MOLES = ASS_COMP3;
 WorkVariMod(1).NbMolesSyst = sum(ASS_COMP3(end,:));
+
+WorkVariMod(1).NbMolesMin = ASS_COMP3(1:end-1,1)./ASS_COMP2(:,1);
 % ---------------------------------------------------------------
 
 WorkVariMod(1).NbPhases = length(WorkVariMod(1).Names);
@@ -1359,6 +1515,10 @@ TheS = textscan(TheL,'%s');
 Job.Mode = str2num(char(TheS{1}(2)));
 
 TheL = fgetl(fid);  % ------ Options (1)
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+Job.OverstepMin = char(TheS{1}(2));
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
