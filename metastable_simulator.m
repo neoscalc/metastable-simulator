@@ -1533,6 +1533,15 @@ TheL = fgetl(fid);  % ------ Options (2)
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
+switch char(TheS{1}(2))
+    case 'ON'
+        Job.Frac2Meta = 1;
+    case 'OFF'
+        Job.Frac2Meta = 0;
+end
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
 NbInput = length(TheS{1})-1;
 for i = 1:NbInput
     Job.EquiMin{i} = char(TheS{1}(1+i));
