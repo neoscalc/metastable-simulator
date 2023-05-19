@@ -8,9 +8,9 @@ function [] = metastable_simulator(varargin)
 close all
 clc
 
-version = '1.7';
+version = '1.8';
 % --
-Compatibility = '1.7';
+Compatibility = '1.8';
 
 % ------------------------------------------------
 %                V E R S I O N S
