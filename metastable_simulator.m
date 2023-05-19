@@ -2,7 +2,7 @@ function [] = metastable_simulator(varargin)
 % metastable_simulator is a simple investigation tool and does not
 % calculate the metastability using our calibration method. 
 %
-% Pierre Lanari – CC23 (Feb. 2023)
+% Pierre Lanari – Syros (May 2023)
 %
 
 close all
@@ -15,6 +15,7 @@ Compatibility = '1.7';
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
+% version 1.8   May 2023    Syros 
 % version 1.7   May 2023    Syros, calculate dG_phase, add options
 % version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
 % version 1.5   Feb 2023    Cavalaire, new calculation "partial"
