@@ -43,7 +43,7 @@ Database:			JUN92.bs
 Metacalc:			JUN92_ExclPl.bs
 Bulk:				AL(0.30866)CA(0.02801)FE(0.098918)MG(0.071276)MN(0.0027789)NA(0.086481)SI(1.0716)TI(0.011115)K(0.090249)H(0.03744)O(?)   *  LB_3  
 -----------------------
-Mode:				2		[1]NUCLEATION | [2]PERSISTENCE
+Mode:				2	[1]NUCLEATION | [2]PERSISTENCE
 ------ Options (1)
 OverstepMin:			FSP2
 FracMin:			GARNET
