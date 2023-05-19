@@ -15,7 +15,7 @@ Compatibility = '1.7';
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
-% version 1.7   May 2023    Syros, calculate dG_phase
+% version 1.7   May 2023    Syros, calculate dG_phase, add options
 % version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
 % version 1.5   Feb 2023    Cavalaire, new calculation "partial"
 % version 1.4   Feb 2023    Cavalaire, improved start file
@@ -183,13 +183,24 @@ for iStep = 1:size(Job.PT,1)
     if isequal(Job.PT(iStep,3),-1) % Force OverstepMin not to be stable (system behaviour: -1)
         dlmwrite('XBIN',char(Job.MetaCalc,'no'),'delimiter','');
     end
+    
+    if Job.Print
+        disp(' ')
+        disp('------------------------------------------------------------------------------')
+        disp('*** Equilibrium calculation: ')
+        tic
+    end
 
     [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
     [WorkVariMod] = Core_ReadResTheriak(yum,'');
     
     NbMolesSyst_Equi(iStep) = WorkVariMod.NbMolesSyst;
 
+    Print_Assemblage(WorkVariMod,'EQUILIBRIUM');
+
     if Job.Print
+        disp(' '),disp(' '),disp(' ')
+        toc
         Print_Results(WorkVariMod,Job.Bulk,'EQUILIBRIUM');
     end
 
@@ -281,14 +292,25 @@ for iStep = 1:size(Job.PT,1)
         DeltaG = zeros(length(LastStable.Minerals)-1,1);
         DeltaGPer = zeros(length(LastStable.Minerals)-1,1);
 
-        for i = 1:length(LastStable.Minerals)-1
+        if Job.Print
+            disp(' ')
+            disp('------------------------------------------------------------------------------')
+            disp('*** Disequilibrium calculation (method 2): ')
+            tic
+        end
 
+        for i = 1:length(LastStable.Minerals)-1
+            
             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
             
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
             dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
 
             % disp(LastStable.Minerals{i})
+
+            if Job.Print
+                tic
+            end
             
             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
 
@@ -301,6 +323,8 @@ for iStep = 1:size(Job.PT,1)
             GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
 
             if Job.Print
+                disp(' '), disp(' '), disp(' ')
+                toc
                 Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
             end
 
@@ -330,6 +354,8 @@ for iStep = 1:size(Job.PT,1)
 
                 fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
                 fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
+
+                % keyboard
             end
 
             if Job.Print
@@ -353,9 +379,6 @@ for iStep = 1:size(Job.PT,1)
 
         Affinity_Method2 = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst_Equi;
 
-        if Job.Pause
-            keyboard
-        end
         
         if isequal(Job.Mode,1)
             % ---------------------------------------------------------------------
@@ -424,6 +447,13 @@ for iStep = 1:size(Job.PT,1)
             % ---------------------------------------------------------------------
             % Method 3.2 [Lanari; Affinity_Method3_2 = delta_G(reacted and unreacted phases)]
 
+            if Job.Print
+                disp(' ')
+                disp('------------------------------------------------------------------------------')
+                disp('*** Disequilibrium calculation (PARTIAL method 3.2): ')
+                tic
+            end
+
             BulkEquiPart = zeros(size(LastStable.MOLES(end,:)));
 
             for i = 1:length(Job.EquiMin)
@@ -445,8 +475,20 @@ for iStep = 1:size(Job.PT,1)
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
             dlmwrite('XBIN',char(Job.Database,'no'),'delimiter','');
 
+            if Job.Print
+                tic
+            end
+
             [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
             [WorkVariMod_GEquiPart] = Core_ReadResTheriak(yum,'');
+
+            Print_Assemblage(WorkVariMod_GEquiPart,'LOCAL EQUIL');
+
+            if Job.Print
+                disp(' '), disp(' '), disp(' ')
+                toc
+                Print_Results(WorkVariMod_GEquiPart,TempBulk,'PARTIAL EQUILIBRATED SYSTEM');
+            end
 
             GEquiPart = WorkVariMod_GEquiPart.Gsys;               % in J
 
@@ -476,22 +518,19 @@ for iStep = 1:size(Job.PT,1)
 
             Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
             
-
             % mf_MolesFracMeta = MolesFracMeta/(MolesFracMeta+NbMolesFracSyst);
             % G_MetaPar = mf_MolesFracMeta*(GFracMeta/MolesFracMeta) + (1-mf_MolesFracMeta)*(GFracEqui/NbMolesFracSyst);
-
-
 
             %GTotalPart(iStep) = GEquiPart+GMetaPart;
 
             %Affinity_Method3_2 = (GTotalPart-GsysEqui)./NbMolesSyst_Equi;        % in J.mol-1
             
         end
-
-
     end
 
-
+    if Job.Pause
+        keyboard
+    end
 
 
 end
@@ -508,7 +547,7 @@ tiledlayout('flow')
 % ylabel('A (J)')
 % title('\DeltaG_s_y_s of Method 1 (Pattison)')
 
-ModePlot = 2;
+ModePlot = 1;    % 1 is T and 2 is P
 
 if isequal(Job.Mode,1)
     Affinity_Method1 = (GsytMethod1-GsysEqui)./NbMolesSyst_Equi;
@@ -779,7 +818,7 @@ end
 
 
 
-
+disp(' ')
 keyboard
 
 
@@ -806,6 +845,20 @@ end
 
 fprintf('\n%s\n',['Gsys = ',num2str(WorkVariMod.Gsys),' J for ',num2str(WorkVariMod.NbMolesSyst), ' moles = ',num2str(WorkVariMod.Gsys/WorkVariMod.NbMolesSyst),' J/mol'])
 
+end
+
+
+function Print_Assemblage(WorkVariMod,Mode)
+
+MinAsmText = '';
+for i = 1:length(WorkVariMod.Names4Apfu)
+    MinAsmText = [MinAsmText,char(WorkVariMod.Names4Apfu{i}),'(',num2str(WorkVariMod.NbMolesMin(i),4),')'];
+    if i <length(WorkVariMod.Names4Apfu)
+        MinAsmText = [MinAsmText,' '];
+    end
+end
+
+fprintf('\n%s',['Assemblage (',Mode,'): [',num2str(WorkVariMod.NbMolesSyst,3),' mol] ',MinAsmText]);
 end
 
 
