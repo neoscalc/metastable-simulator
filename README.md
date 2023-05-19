@@ -45,7 +45,7 @@ Bulk:				AL(0.30866)CA(0.02801)FE(0.098918)MG(0.071276)MN(0.0027789)NA(0.086481)
 -----------------------
 Mode:				2		[1]NUCLEATION | [2]PERSISTENCE
 ------ Options (1)
-OverstepMin:		FSP2
+OverstepMin:			FSP2
 FracMin:			GARNET
 FracMolFrac:			0.2		
 ------ Options (2)
