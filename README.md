@@ -16,7 +16,7 @@ An example of input file is provided bellow. Each entry is described in the tabl
 | Metacalc        | Name of the database with the excluded solution for mode 1 (nucleation))        |
 | Bulk            | Input for the original bulk rock composition in the Theriak format        |
 | --------------- |                                                               |
-| Mode            | Mode to run the program for this job        |
+| Mode            | Mode to run the program for this job: [1]NUCLEATION | [2]PERSISTENCE        |
 | --- Options (1) | Options for mode 1 (nucleation)                                                              |
 | OverstepMin     | Define the mineral which is prevented to be stable    |
 | FracMin         | Mineral kept metastable (default: NONE)      |

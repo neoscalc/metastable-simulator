@@ -15,7 +15,7 @@ Compatibility = '1.8';
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
-% version 1.8   May 2023    Syros 
+% version 1.8   May 2023    Syros, add fractionation to method 2
 % version 1.7   May 2023    Syros, calculate dG_phase, add options
 % version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
 % version 1.5   Feb 2023    Cavalaire, new calculation "partial"
@@ -175,6 +175,7 @@ for iStep = 1:size(Job.PT,1)
     disp(' ')
     disp('*****************************************')
     disp(['Calculating step #',num2str(iStep),'/',num2str(size(Job.PT,1))])
+    disp(' ');
 
     % ---------------------------------------------------------------------
     % EQUI – Equilibrium calculation (minimum G at P and T)
@@ -277,111 +278,42 @@ for iStep = 1:size(Job.PT,1)
         NbMolesSyst_META(iStep) = NbMolesSyst_Equi(iStep);
 
     else                                                       % Metastable
-        
-        % ---------------------------------------------------------------------
-        % Method 2 [Pattison; Affinity = delta_G(unreacted phases)]
-        
-        GminMeta = zeros(size(LastStable.Minerals));
-        GminMeta2 = zeros(size(LastStable.Minerals));
-        GminMeta_SPEC = zeros(size(LastStable.Minerals));
+                
+        if isequal(Job.Mode,1)
+            % ---------------------------------------------------------------------
+            % Method 2 [Pattison; Affinity = delta_G(unreacted phases)]
 
-        NbMolesSyst_META_TEMP = zeros(length(LastStable.Minerals)-1,1);           % All stable "phases"
-        NbMolesSyst_META_TEMP_SPEC = zeros(length(LastStable.Minerals)-1,1);      % Dominant phase (to trace problems)
+            GminMeta_SPEC = zeros(size(LastStable.Minerals));
 
-        DeltaMoles = zeros(length(LastStable.Minerals)-1,1);
-        DeltaMolesPer = zeros(length(LastStable.Minerals)-1,1);
-        DeltaG = zeros(length(LastStable.Minerals)-1,1);
-        DeltaGPer = zeros(length(LastStable.Minerals)-1,1);
-
-        if Job.Print
-            disp(' ')
-            disp('------------------------------------------------------------------------------')
-            disp('*** Disequilibrium calculation (method 2): ')
-            tic
-        end
-
-        for i = 1:length(LastStable.Minerals)-1
-            
-            TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-            
-            dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-            dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
-
-            % disp(LastStable.Minerals{i})
+            NbMolesSyst_META_TEMP_SPEC = zeros(length(LastStable.Minerals)-1,1);      % Dominant phase (to trace problems)
 
             if Job.Print
+                disp(' ')
+                disp('------------------------------------------------------------------------------')
+                disp('*** Disequilibrium calculation (method 2): ')
                 tic
             end
-            
-            [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
 
-            [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-            
-            ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,'Method2');
-            EMF = BackupEMF(EMF,WorkVariMod_META,iStep,'Method2');
-            
-            GminMeta(i) = WorkVariMod_META.Gsys;        % Gsys of theriak in J.
-            GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
+            for i = 1:length(LastStable.Minerals)-1
 
-            if Job.Print
-                disp(' '), disp(' '), disp(' ')
-                toc
-                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
+                TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
+
+                % Add a function here (1.8) ---------------
+                [Output_GminMeta_SPEC,Output_NbMolesSyst_META_TEMP_SPEC,ChemMineral,EMF] = CalcGMetaPhase(TempBulk,Job,iStep,i,LastStable.Minerals{i},ChemMineral,EMF,'Method2');
+
+                NbMolesSyst_META_TEMP_SPEC(i) = Output_NbMolesSyst_META_TEMP_SPEC;
+                GminMeta_SPEC(i) = Output_GminMeta_SPEC;
+
             end
 
-            % Check minimzation results and recalculate NbMolesSyst (version 1.3 – Cavalaire 2023)
-            NbMolesTable = sum(WorkVariMod_META.MOLES,2);
+            NbMolesSyst_META(iStep) = sum(NbMolesSyst_META_TEMP_SPEC);          % can be slighly Lower than sum(Gsys)/NbMolesSyst (see bellow)
 
-            [Val,IdxPhase] = max(NbMolesTable(1:end-1));
+            GsytMeta(iStep) = sum(GminMeta_SPEC);                               % was sum(GminMeta) in 1.2
+            GsysEqui(iStep) = WorkVariMod.Gsys;
 
-            NbMolesSyst_META_TEMP_SPEC(i) = NbMolesTable(IdxPhase);
-            NbMolesSyst_META_TEMP(i) = NbMolesTable(end);
-            
-            DeltaMoles(i) = NbMolesSyst_META_TEMP(i)-NbMolesSyst_META_TEMP_SPEC(i);
-            DeltaMolesPer(i) = (NbMolesSyst_META_TEMP(i)-NbMolesSyst_META_TEMP_SPEC(i))/NbMolesSyst_META_TEMP(i)*100;
+            Affinity_Method2 = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst_Equi;
 
-            GminMeta_SPEC(i) = -sum(WorkVariMod_META.MOLES(IdxPhase,:) .* WorkVariMod_META.ChemPotEl);
 
-            DeltaG(i) = WorkVariMod_META.Gsys - GminMeta_SPEC(i);
-            DeltaGPer(i) = (WorkVariMod_META.Gsys - GminMeta_SPEC(i))/WorkVariMod_META.Gsys*100;
-            %WorkVariMod(1).ChemPotEl
-
-            if DeltaGPer(i) >= 0.001
-
-                PrintFatalError
-                
-                % Then we print this one:
-                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
-
-                fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
-                fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
-
-                % keyboard
-            end
-
-            if Job.Print
-                fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
-                fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
-                
-                %keyboard
-            end
-
-            if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 150    % was 10 then 15 then 50 and now 150... Nothing seems wrong...
-                disp('Oups, something went wrong as G metastable is incorrectly estimated, check details');
-                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
-                keyboard
-            end
-        end
-        
-        NbMolesSyst_META(iStep) = sum(NbMolesSyst_META_TEMP_SPEC);          % can be slighly Lower than sum(Gsys)/NbMolesSyst (see bellow)
-        
-        GsytMeta(iStep) = sum(GminMeta_SPEC);                               % was sum(GminMeta) in 1.2
-        GsysEqui(iStep) = WorkVariMod.Gsys;
-
-        Affinity_Method2 = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst_Equi;
-
-        
-        if isequal(Job.Mode,1)
             % ---------------------------------------------------------------------
             % Method 3 [Lanari; Affinity_Method3 = delta_G(reacted and unreacted phases)]
 
@@ -444,7 +376,6 @@ for iStep = 1:size(Job.PT,1)
         % Affinity_Method3 = MolesFracMeta * GFracMeta + (1-MolesFracMeta) * GFracEqui  -  G_Equi
 
         if isequal(Job.Mode,2)
-
             % ---------------------------------------------------------------------
             % Method 3.2 [Lanari; Affinity_Method3_2 = delta_G(reacted and unreacted phases)]
 
@@ -455,12 +386,16 @@ for iStep = 1:size(Job.PT,1)
                 tic
             end
 
+            % Calculate the reactive bulk composition based on the input
+            % of "EquiMin" and the molar fraction provided by EquiMolFrac
+            % This doesn't work for progressive fractionation (version 1.8)
+            % 
             BulkEquiPart = zeros(size(LastStable.MOLES(end,:)));
 
             for i = 1:length(Job.EquiMin)
                 Idx4Frac = find(ismember(LastStable.Minerals,Job.EquiMin{i}));
                 if ~isempty(Idx4Frac)
-                    if length(Idx4Frac) > 1
+                    if length(Idx4Frac) > 1              % this is to handle demixion
                         for j = 1:length(Idx4Frac)
                             BulkEquiPart = BulkEquiPart + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac(j),:);
                         end
@@ -470,7 +405,9 @@ for iStep = 1:size(Job.PT,1)
                 end
             end
 
-            % Calculate GEquiPart
+            % update BulkEquiPart to FractModel.RBC (version 1.8)
+
+            % [1] Calculate GEquiPart
             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,BulkEquiPart);
 
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
@@ -496,7 +433,11 @@ for iStep = 1:size(Job.PT,1)
             ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_GEquiPart,iStep,'Method3_2_EquiPart');
             EMF = BackupEMF(EMF,WorkVariMod_GEquiPart,iStep,'Method3_2_EquiPart');
 
-            % Calculate GMetaPart
+            % [2] Calculate GMetaPart
+
+            % Here we will need to recalculate GMetaPart because several
+            % minerals.
+
             GMetaPart = 0;
             NbMolesMeta = 0;
 
@@ -519,13 +460,8 @@ for iStep = 1:size(Job.PT,1)
 
             Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
             
-            % mf_MolesFracMeta = MolesFracMeta/(MolesFracMeta+NbMolesFracSyst);
-            % G_MetaPar = mf_MolesFracMeta*(GFracMeta/MolesFracMeta) + (1-mf_MolesFracMeta)*(GFracEqui/NbMolesFracSyst);
+            % Add fractionation here? (version 1.8)
 
-            %GTotalPart(iStep) = GEquiPart+GMetaPart;
-
-            %Affinity_Method3_2 = (GTotalPart-GsysEqui)./NbMolesSyst_Equi;        % in J.mol-1
-            
         end
     end
 
@@ -826,6 +762,81 @@ keyboard
 end
 
 
+function [GminMeta_SPEC,NbMolesSyst_META_TEMP_SPEC,ChemMineral,EMF] = CalcGMetaPhase(TempBulk,Job,iStep,iMin,SolName,ChemMineral,EMF,Method)
+%
+% Introduced in 1.8 (Syros 21.05.23)
+
+
+dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+dlmwrite('XBIN',char([Job.Database,'   ',SolName],'no'),'delimiter','');
+
+if Job.Print
+    tic
+end
+
+[wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+[WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,Method);
+EMF = BackupEMF(EMF,WorkVariMod_META,iStep,Method);
+
+GminMeta = WorkVariMod_META.Gsys;        % Gsys of theriak in J.
+GminMeta2 = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
+
+if Job.Print
+    disp(' '), disp(' '), disp(' ')
+    toc
+    Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{iMin});
+end
+
+% Check minimzation results and recalculate NbMolesSyst (version 1.3 – Cavalaire 2023)
+NbMolesTable = sum(WorkVariMod_META.MOLES,2);
+
+[Val,IdxPhase] = max(NbMolesTable(1:end-1));
+
+NbMolesSyst_META_TEMP_SPEC = NbMolesTable(IdxPhase);
+NbMolesSyst_META_TEMP = NbMolesTable(end);
+
+DeltaMoles = NbMolesSyst_META_TEMP-NbMolesSyst_META_TEMP_SPEC;
+DeltaMolesPer = (NbMolesSyst_META_TEMP-NbMolesSyst_META_TEMP_SPEC)/NbMolesSyst_META_TEMP*100;
+
+GminMeta_SPEC = -sum(WorkVariMod_META.MOLES(IdxPhase,:) .* WorkVariMod_META.ChemPotEl);
+
+DeltaG = WorkVariMod_META.Gsys - GminMeta_SPEC;
+DeltaGPer = (WorkVariMod_META.Gsys - GminMeta_SPEC)/WorkVariMod_META.Gsys*100;
+
+if DeltaGPer >= 0.001
+
+    PrintFatalError
+
+    % Then we print this one:
+    Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{iMin});
+
+    fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
+    fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC),' J (shift = ',num2str(DeltaGPer),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC), ' moles (shift = ',num2str(DeltaMolesPer),'%) = ',num2str(GminMeta_SPEC/NbMolesSyst_META_TEMP_SPEC),' J/mol'])
+
+    % keyboard
+end
+
+if Job.Print
+    fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
+    fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC),' J (shift = ',num2str(DeltaGPer),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC), ' moles (shift = ',num2str(DeltaMolesPer),'%) = ',num2str(GminMeta_SPEC/NbMolesSyst_META_TEMP_SPEC),' J/mol'])
+
+    %keyboard
+end
+
+if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 150    % was 10 then 15 then 50 and now 150... Nothing seems wrong...
+    disp('Oups, something went wrong as G metastable is incorrectly estimated, check details');
+    Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{iMin});
+    keyboard
+end
+
+
+
+end
+
+
 function Print_Results(WorkVariMod,Bulk,Mode)
 
 
@@ -859,7 +870,7 @@ for i = 1:length(WorkVariMod.Names4Apfu)
     end
 end
 
-fprintf('\n%s',['Assemblage (',Mode,'): [',num2str(WorkVariMod.NbMolesSyst,3),' mol] ',MinAsmText]);
+fprintf('%s\n',['Assemblage (',Mode,'): [',num2str(WorkVariMod.NbMolesSyst,3),' mol] ',MinAsmText]);
 end
 
 
