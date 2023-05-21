@@ -22,9 +22,9 @@ An example of input file is provided bellow. Each entry is described in the tabl
 | FracMin         | Mineral kept metastable (default: NONE)      |
 | FracMolFrac     | Molar fraction of the mineral kept metastable in the interval [0,1] (default: 1)      |
 | --- Options (2) | Options for mode 2 (persistence)                                                              |
-| Frac2Meta       | ON/OFF (default: ON) If activated, the program keep adding the newly formed mineral in the fractionated list to the metastable system      |
-| EquiMin         | Mineral names (default: NONE) separated by space/tabulation. These minerals if stable will re-equilibrate at each stage!       |
-| EquiMolFrac     | Molar fractions in the interval [0,1] (default: 1) separated by space/tabulation. The mole fraction of the mineral that re-equilibrate        |
+| KeepFrac        | ON/OFF (default: ON) If activated, the program keep adding the newly formed mineral in the fractionated list to the metastable system      |
+| FracMin         | Mineral names (default: NONE) separated by space/tabulation. These minerals if stable will be fractionated       |
+| FracMol        | Molar fractions in the interval [0,1] (default: 1) separated by space/tabulation. The mole fraction of the mineral that is fractionated        |
 | --------------- |                                                               |
 | GenerateSeeds   | ON/OFF (default: OFF) if activated the program only generates seeds and stop         |
 | SaveOutput      | ON/OFF (default: ON)       |
@@ -37,7 +37,7 @@ An example of input file is provided bellow. Each entry is described in the tabl
 
 
 ```
-Version:			1.7
+Version:			1.8
 TheriakPath:			/Users/pierrelanari/Geologie/Programs/TheriakDominoCompiled/theriak
 Database:			JUN92.bs
 Metacalc:			JUN92_ExclPl.bs
@@ -49,9 +49,9 @@ OverstepMin:			FSP2
 FracMin:			GARNET
 FracMolFrac:			0.2		
 ------ Options (2)
-Frac2Meta:			YES
-EquiMin:			BIOTITE
-EquiMolFrac:			1
+KeepFrac:			YES
+FracMin:			BIOTITE
+FracMol:			1
 -----------------------
 GenerateSeeds:			OFF
 SaveOutput:			ON
