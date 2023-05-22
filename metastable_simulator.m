@@ -15,7 +15,7 @@ Compatibility = '1.8';
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
-% version 1.8   May 2023    Syros, add fractionation to method 2
+% version 1.8   May 2023    Syros, add fractionation to mode 2
 % version 1.7   May 2023    Syros, calculate dG_phase, add options
 % version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
 % version 1.5   Feb 2023    Cavalaire, new calculation "partial"
@@ -478,11 +478,11 @@ for iStep = 1:size(Job.PT,1)
 
             mf_MolesFracMeta = sum(NbMolesMeta)/(sum(NbMolesMeta)+WorkVariMod_GEquiPart.NbMolesSyst);
             
-            GTotalPart(iStep) = mf_MolesFracMeta*(sum(GMetaPart)/sum(NbMolesMeta)) + (1-mf_MolesFracMeta)*(GEquiPart/WorkVariMod_GEquiPart.NbMolesSyst);
+            GTotalPart(iStep) = mf_MolesFracMeta*(sum(GMetaPart)/sum(NbMolesMeta)) + (1-mf_MolesFracMeta)*(GEquiPart/WorkVariMod_GEquiPart.NbMolesSyst); % renormalize the J.mol
 
             Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
-            
-%keyboard
+
+           % keyboard
 
             % Add fractionation here? (version 1.8)
 
@@ -490,7 +490,7 @@ for iStep = 1:size(Job.PT,1)
     end
 
     if Job.Pause
-        keyboard
+        keyboard 
     end
 
 
@@ -696,10 +696,9 @@ else
     
     ax2 = nexttile; hold on
     plot(Affinity_Method3_2,'o-k')
-    plot(Affinity_Method2,'o-b')
     xlabel('T (°C)')
     ylabel('A (J/mol)')
-    title('Affinity (J/mol)')
+    title('Affinity Method 3.2 (J/mol)')
 
     %ax2 = gca;
     ax2.YLim(1) = 0;
@@ -714,8 +713,30 @@ else
             ax2.XTickLabel{i} = '';
         end
     end
-
     ax2.XTickMode = 'manual';
+
+
+    ax3 = nexttile; hold on
+    plot(Affinity_Method3_2,'o-k')
+    plot(Affinity_Method2,'o-b')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    title('Affinity (J/mol)')
+
+    %ax2 = gca;
+    ax3.YLim(1) = 0;
+    ax3.YLim(2) = LimYaxis;
+
+    ax3.XTick = ax.XTick;
+
+    for i = 1:length(ax2.XTick)
+        if ax3.XTick(i) > 0 && ax2.XTick(i) < size(Job.PT,1)
+            ax3.XTickLabel{i} = num2str(Job.PT(ax2.XTick(i),1));
+        else
+            ax3.XTickLabel{i} = '';
+        end
+    end
+    ax3.XTickMode = 'manual';
 
 end
 
@@ -755,6 +776,12 @@ if Job.SaveOutput
         save('LastResults/AffinityData.mat','AffinityData');
     end
 
+    if isequal(Job.Mode,2)
+        AffinityData.Labels = {'Temperature (°C)','Pressure (GPa)','Reactivity',Affinity_Method2','Affinity_Method3.2'};
+        AffinityData.Data = [Job.PT,Affinity_Method2',Affinity_Method3_2'];
+        save('LastResults/AffinityData.mat','AffinityData');
+    end
+
 end
 
 
@@ -791,7 +818,7 @@ GminMeta2 = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potent
 if Job.Print
     disp(' '), disp(' '), disp(' ')
     toc
-    Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{iMin});
+    Print_Results(WorkVariMod_META,TempBulk,SolName);
 end
 
 % Check minimzation results and recalculate NbMolesSyst (version 1.3 – Cavalaire 2023)
