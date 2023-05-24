@@ -296,23 +296,23 @@ for iStep = 1:size(Job.PT,1)
 
             ComptFract = 0;
             
-            for i = 1:length(Job.EquiMin)
-                Idx4Frac = find(ismember(LastStable.Minerals,Job.EquiMin{i}));
+            for i = 1:length(Job.FracMin2)
+                Idx4Frac = find(ismember(LastStable.Minerals,Job.FracMin2{i}));
                 if ~isempty(Idx4Frac)
                     if length(Idx4Frac) > 1              % this is to handle demixion
                         for j = 1:length(Idx4Frac)
                             ComptFract = ComptFract + 1;
                             FractModel.Names{ComptFract} = LastStable.Minerals{Idx4Frac};
-                            FractModel.CMP(ComptFract,:) = Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac(j),:);
+                            FractModel.CMP(ComptFract,:) = Job.FracMol2(i).*LastStable.MOLES(Idx4Frac(j),:);
                             %
-                            FractModel.MBC = FractModel.MBC + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac(j),:);
+                            FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*LastStable.MOLES(Idx4Frac(j),:);
                         end
                     else
                         ComptFract = ComptFract + 1;
                         FractModel.Names{ComptFract} = LastStable.Minerals{Idx4Frac};
-                        FractModel.CMP(ComptFract,:) = Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac,:);
+                        FractModel.CMP(ComptFract,:) = Job.FracMol2(i).*LastStable.MOLES(Idx4Frac,:);
                         %
-                        FractModel.MBC = FractModel.MBC + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac,:);
+                        FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*LastStable.MOLES(Idx4Frac,:);
                     end
                 end
             end
@@ -472,6 +472,10 @@ for iStep = 1:size(Job.PT,1)
 
                 NbMolesMeta(i) = Output_NbMolesSyst_META_TEMP_SPEC;
                 GMetaPart(i) = Output_GminMeta_SPEC;
+
+                FractModel.G(i,iStep) = GMetaPart(i);
+                FractModel.NbMolesCheck(i,iStep) = NbMolesMeta(i);
+
             end
 
             NbMolesTotalPart = sum(NbMolesMeta) + WorkVariMod_GEquiPart.NbMolesSyst;
@@ -482,9 +486,46 @@ for iStep = 1:size(Job.PT,1)
 
             Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
 
-           % keyboard
+            
 
-            % Add fractionation here? (version 1.8)
+            if isequal(Job.KeepFrac,1)
+                % Add fractionation (version 1.8)
+                ThresholdMolFrac = 0.01;
+                
+                Minerals = WorkVariMod_GEquiPart.Names4Moles;
+                disp(' ')
+                disp('Fractionation:')
+                for i = 1:length(Job.FracMin2)
+                    Idx4Frac = find(ismember(Minerals,Job.FracMin2{i}));
+                    if ~isempty(Idx4Frac)
+                        if length(Idx4Frac) > 1              % this is to handle demixion
+                            for j = 1:length(Idx4Frac)
+                                if sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:))/sum(LastStable.MOLES(end,:)) > ThresholdMolFrac
+                                    FractModel.Names{end+1} = Minerals{Idx4Frac(j)};
+                                    FractModel.CMP(end+1,:) = Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:);
+                                    %
+                                    FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:);
+                                    disp(['- Added ',Minerals{Idx4Frac(j)}])
+                                else
+                                    disp(['- Skipped ',Minerals{Idx4Frac(j)},' (',num2str(sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:))/sum(LastStable.MOLES(end,:))),')'])
+                                end
+                            end
+                        else
+                            if sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac,:))/sum(LastStable.MOLES(end,:)) > ThresholdMolFrac
+                                ComptFract = ComptFract + 1;
+                                FractModel.Names{end+1} = Minerals{Idx4Frac};
+                                FractModel.CMP(end+1,:) = Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac,:);
+                                %
+                                FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac,:);
+                                disp(['- Added ',Minerals{Idx4Frac}])
+                            else
+                                disp(['- Skipped ',Minerals{Idx4Frac},' (',num2str(sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac,:))/sum(LastStable.MOLES(end,:))),')'])
+                            end
+                        end
+                    end
+                end
+                FractModel.RBC = FractModel.BC - FractModel.MBC;
+            end
 
         end
     end
@@ -1577,23 +1618,23 @@ TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
 switch char(TheS{1}(2))
     case 'ON'
-        Job.Frac2Meta = 1;
+        Job.KeepFrac = 1;
     case 'OFF'
-        Job.Frac2Meta = 0;
+        Job.KeepFrac = 0;
 end
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
 NbInput = length(TheS{1})-1;
 for i = 1:NbInput
-    Job.EquiMin{i} = char(TheS{1}(1+i));
+    Job.FracMin2{i} = char(TheS{1}(1+i));
 end
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
 NbInput = length(TheS{1})-1;
 for i = 1:NbInput
-    Job.EquiMolFrac(i) = str2num(char(TheS{1}(1+i)));
+    Job.FracMol2(i) = str2num(char(TheS{1}(1+i)));
 end
 
 TheL = fgetl(fid);  % -----------------------
