@@ -151,7 +151,6 @@ ChemMineral.Method3_2_MetaPart.Min(1).Comp = [];
 ChemMineral.Method3_2_MetaPart.Min(1).Moles = [];
 
 
-
 EMF.Equi.SSNames = {};
 EMF.Equi.Data(1).EM = {};
 EMF.Equi.Data(1).EMprop = [];
@@ -175,7 +174,6 @@ GsytMethod1 = zeros(1,size(Job.PT,1));
 % NbMolesSyst_Equi = zeros(1,size(Job.PT,1));
 DGexcluded = zeros(1,size(Job.PT,1));
 NbMolesSyst_1 = zeros(1,size(Job.PT,1));
-
 
 for iStep = 1:size(Job.PT,1)
     
@@ -216,6 +214,27 @@ for iStep = 1:size(Job.PT,1)
 
     ChemMineral = BackupMinComp(ChemMineral,WorkVariMod,iStep,'Equi');
     EMF = BackupEMF(EMF,WorkVariMod,iStep,'Equi');
+
+    if isequal(Job.Mode,2)
+        % Calculate the Gmin_equi (temporary 1.8)
+
+        GEquiPart = 0;
+        NbMolesEqui = 0;
+
+        for i = 1:length(WorkVariMod.Names4Apfu)
+            TempBulk = GenerateBulkForMetastablePhase(WorkVariMod.Els,WorkVariMod.MOLES(i,:));
+
+            % Add a function here (1.8) ---------------
+            [Output_GminMeta_EQUI_SPEC,Output_NbMolesSyst_EQUI_TEMP_SPEC,ChemMineral,EMF] = CalcGMetaPhase(TempBulk,Job,iStep,i,WorkVariMod.Names4Apfu{i},ChemMineral,EMF,'NONE');
+
+            NbMolesEqui(i) = Output_NbMolesSyst_EQUI_TEMP_SPEC;
+            GMinEqui(i) = Output_GminMeta_EQUI_SPEC;
+
+            %FractModel.G(i,iStep) = GMetaPart(i);
+            %FractModel.NbMolesCheck(i,iStep) = NbMolesMeta(i);
+        end
+    end
+
     
     if isequal(Job.Mode,1)
         % ---------------------------------------------------------------------
@@ -476,6 +495,15 @@ for iStep = 1:size(Job.PT,1)
                 FractModel.G(i,iStep) = GMetaPart(i);
                 FractModel.NbMolesCheck(i,iStep) = NbMolesMeta(i);
 
+                % Temporary extract G_equi of mineral
+                Where = find(ismember(WorkVariMod.Names4Apfu,FractModel.Names{i}));
+                if ~isempty(Where)
+                    FractModel.G_equi(i,iStep) = GMinEqui(Where(1));  % Achtung does not handle demixion!
+                    FractModel.NbMoles_equi(i,iStep) = NbMolesEqui(Where(1));
+                else
+                    FractModel.G_equi(i,iStep) = 0;
+                    FractModel.NbMoles_equi(i,iStep) = 0;
+                end
             end
 
             NbMolesTotalPart = sum(NbMolesMeta) + WorkVariMod_GEquiPart.NbMolesSyst;
@@ -486,7 +514,6 @@ for iStep = 1:size(Job.PT,1)
 
             Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
 
-            
 
             if isequal(Job.KeepFrac,1)
                 % Add fractionation (version 1.8)
@@ -825,6 +852,7 @@ if Job.SaveOutput
 
 end
 
+% 
 
 
 disp(' ')
@@ -850,8 +878,10 @@ end
 
 [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
 
-ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,Method);
-EMF = BackupEMF(EMF,WorkVariMod_META,iStep,Method);
+if ~isequal(Method,'NONE')
+    ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,Method);
+    EMF = BackupEMF(EMF,WorkVariMod_META,iStep,Method);
+end
 
 GminMeta = WorkVariMod_META.Gsys;        % Gsys of theriak in J.
 GminMeta2 = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
