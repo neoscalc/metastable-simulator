@@ -852,11 +852,13 @@ if Job.SaveOutput
 
 end
 
-% 
-
+% Cleaning: 
+delete(fullfile(cd,'OUT'));
+delete(fullfile(cd,'theriak.last'));
+delete(fullfile(cd,'XBIN'));
 
 disp(' ')
-keyboard
+% keyboard
 
 
 end
