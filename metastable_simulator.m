@@ -930,9 +930,12 @@ if Job.Print
     %keyboard
 end
 
-if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 150    % was 10 then 15 then 50 and now 150... Nothing seems wrong...
+if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 150 % e12    % was 10 then 15 then 50 and now 150... Nothing seems wrong...
     disp('Oups, something went wrong as G metastable is incorrectly estimated, check details');
     Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{iMin});
+    disp(' ')
+    disp(' ')
+    disp(' --> The program is paused because of a single-phase minimisation failure but you can continue...')
     keyboard
 end
 
