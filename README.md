@@ -16,13 +16,15 @@ An example of input file is provided bellow. Each entry is described in the tabl
 | Metacalc        | Name of the database with the excluded solution for mode 1 (nucleation))        |
 | Bulk            | Input for the original bulk rock composition in the Theriak format        |
 | --------------- |                                                               |
-| Mode            | Mode to run the program for this job        |
+| Mode            | Mode to run the program for this job: [1]NUCLEATION | [2]PERSISTENCE        |
 | --- Options (1) | Options for mode 1 (nucleation)                                                              |
-| FracMin         |         |
-| FracMolFrac     |         |
+| OverstepMin     | Define the mineral which is prevented to be stable    |
+| FracMin         | Mineral kept metastable (default: NONE)      |
+| FracMolFrac     | Molar fraction of the mineral kept metastable in the interval [0,1] (default: 1)      |
 | --- Options (2) | Options for mode 2 (persistence)                                                              |
-| EquiMin         | Mineral names (default: NONE) separated by space/tabulation. These minerals if stable will re-equilibrate at each stage!       |
-| EquiMolFrac     | Molde fractions in the interval [0,1] (default: 1) separated by space/tabulation. The mole fraction of the mineral that re-equilibrate        |
+| KeepFrac        | ON/OFF (default: ON) If activated, the program keep adding the newly formed mineral in the fractionated list to the metastable system      |
+| FracMin         | Mineral names (default: NONE) separated by space/tabulation. These minerals if stable will be fractionated       |
+| FracMol        | Molar fractions in the interval [0,1] (default: 1) separated by space/tabulation. The mole fraction of the mineral that is fractionated        |
 | --------------- |                                                               |
 | GenerateSeeds   | ON/OFF (default: OFF) if activated the program only generates seeds and stop         |
 | SaveOutput      | ON/OFF (default: ON)       |
@@ -35,19 +37,21 @@ An example of input file is provided bellow. Each entry is described in the tabl
 
 
 ```
-Version:			1.6
+Version:			1.8
 TheriakPath:			/Users/pierrelanari/Geologie/Programs/TheriakDominoCompiled/theriak
 Database:			JUN92.bs
 Metacalc:			JUN92_ExclPl.bs
 Bulk:				AL(0.30866)CA(0.02801)FE(0.098918)MG(0.071276)MN(0.0027789)NA(0.086481)SI(1.0716)TI(0.011115)K(0.090249)H(0.03744)O(?)   *  LB_3  
 -----------------------
-Mode:				2		[1]NUCLEATION | [2]PERSISTENCE
+Mode:				2	[1]NUCLEATION | [2]PERSISTENCE
 ------ Options (1)
+OverstepMin:			FSP2
 FracMin:			GARNET
 FracMolFrac:			0.2		
 ------ Options (2)
-EquiMin:			BIOTITE
-EquiMolFrac:			1
+KeepFrac:			YES
+FracMin:			BIOTITE
+FracMol:			1
 -----------------------
 GenerateSeeds:			OFF
 SaveOutput:			ON

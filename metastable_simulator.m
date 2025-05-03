@@ -2,19 +2,20 @@ function [] = metastable_simulator(varargin)
 % metastable_simulator is a simple investigation tool and does not
 % calculate the metastability using our calibration method. 
 %
-% Pierre Lanari – CC23 (Feb. 2023)
+% Pierre Lanari – Syros (May 2023)
 %
 
 close all
 clc
 
-version = '1.7';
+version = '1.8';
 % --
-Compatibility = '1.7';
+Compatibility = '1.8';
 
 % ------------------------------------------------
 %                V E R S I O N S
 % ------------------------------------------------
+% version 1.8   May 2023    Syros, add fractionation to mode 2
 % version 1.7   May 2023    Syros, calculate dG_phase, add options
 % version 1.6   Mar 2023    Bern, new modes: nucleation & persistence
 % version 1.5   Feb 2023    Cavalaire, new calculation "partial"
@@ -144,6 +145,11 @@ ChemMineral.Method3_2_EquiPart.MinNames = '';
 ChemMineral.Method3_2_EquiPart.ElNames = '';
 ChemMineral.Method3_2_EquiPart.Min(1).Comp = [];
 ChemMineral.Method3_2_EquiPart.Min(1).Moles = [];
+ChemMineral.Method3_2_MetaPart.MinNames = '';
+ChemMineral.Method3_2_MetaPart.ElNames = '';
+ChemMineral.Method3_2_MetaPart.Min(1).Comp = [];
+ChemMineral.Method3_2_MetaPart.Min(1).Moles = [];
+
 
 EMF.Equi.SSNames = {};
 EMF.Equi.Data(1).EM = {};
@@ -160,13 +166,14 @@ EMF.Method3.Data(1).EMprop = [];
 EMF.Method3_2_EquiPart.SSNames = {};
 EMF.Method3_2_EquiPart.Data(1).EM = {};
 EMF.Method3_2_EquiPart.Data(1).EMprop = [];
-
+EMF.Method3_2_MetaPart.SSNames = {};
+EMF.Method3_2_MetaPart.Data(1).EM = {};
+EMF.Method3_2_MetaPart.Data(1).EMprop = [];
 
 GsytMethod1 = zeros(1,size(Job.PT,1));
 % NbMolesSyst_Equi = zeros(1,size(Job.PT,1));
 DGexcluded = zeros(1,size(Job.PT,1));
 NbMolesSyst_1 = zeros(1,size(Job.PT,1));
-
 
 for iStep = 1:size(Job.PT,1)
     
@@ -174,6 +181,7 @@ for iStep = 1:size(Job.PT,1)
     disp(' ')
     disp('*****************************************')
     disp(['Calculating step #',num2str(iStep),'/',num2str(size(Job.PT,1))])
+    disp(' ');
 
     % ---------------------------------------------------------------------
     % EQUI – Equilibrium calculation (minimum G at P and T)
@@ -206,6 +214,27 @@ for iStep = 1:size(Job.PT,1)
 
     ChemMineral = BackupMinComp(ChemMineral,WorkVariMod,iStep,'Equi');
     EMF = BackupEMF(EMF,WorkVariMod,iStep,'Equi');
+
+    if isequal(Job.Mode,2)
+        % Calculate the Gmin_equi (temporary 1.8)
+
+        GEquiPart = 0;
+        NbMolesEqui = 0;
+
+        for i = 1:length(WorkVariMod.Names4Apfu)
+            TempBulk = GenerateBulkForMetastablePhase(WorkVariMod.Els,WorkVariMod.MOLES(i,:));
+
+            % Add a function here (1.8) ---------------
+            [Output_GminMeta_EQUI_SPEC,Output_NbMolesSyst_EQUI_TEMP_SPEC,ChemMineral,EMF] = CalcGMetaPhase(TempBulk,Job,iStep,i,WorkVariMod.Names4Apfu{i},ChemMineral,EMF,'NONE');
+
+            NbMolesEqui(i) = Output_NbMolesSyst_EQUI_TEMP_SPEC;
+            GMinEqui(i) = Output_GminMeta_EQUI_SPEC;
+
+            %FractModel.G(i,iStep) = GMetaPart(i);
+            %FractModel.NbMolesCheck(i,iStep) = NbMolesMeta(i);
+        end
+    end
+
     
     if isequal(Job.Mode,1)
         % ---------------------------------------------------------------------
@@ -275,22 +304,48 @@ for iStep = 1:size(Job.PT,1)
 
         NbMolesSyst_META(iStep) = NbMolesSyst_Equi(iStep);
 
+        if isequal(Job.Mode,2) % Create an additional variable for fractionation
+            FractModel.Elem = LastStable.Elem;
+            FractModel.BC = WorkVariMod.MOLES(end,:);               % initial bulk composition (input) but from theriak (right order)
+
+            FractModel.MBC = zeros(size(LastStable.MOLES(end,:)));  % Bulk composition of the metastable part of the rock
+            FractModel.RBC = zeros(size(LastStable.MOLES(end,:)));  % Bulk composiiton of the reactive part of the rock (stable) = BC - MBC;
+            FractModel.Names = {};
+            FractModel.CMP = [];
+
+            ComptFract = 0;
+            
+            for i = 1:length(Job.FracMin2)
+                Idx4Frac = find(ismember(LastStable.Minerals,Job.FracMin2{i}));
+                if ~isempty(Idx4Frac)
+                    if length(Idx4Frac) > 1              % this is to handle demixion
+                        for j = 1:length(Idx4Frac)
+                            ComptFract = ComptFract + 1;
+                            FractModel.Names{ComptFract} = LastStable.Minerals{Idx4Frac};
+                            FractModel.CMP(ComptFract,:) = Job.FracMol2(i).*LastStable.MOLES(Idx4Frac(j),:);
+                            %
+                            FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*LastStable.MOLES(Idx4Frac(j),:);
+                        end
+                    else
+                        ComptFract = ComptFract + 1;
+                        FractModel.Names{ComptFract} = LastStable.Minerals{Idx4Frac};
+                        FractModel.CMP(ComptFract,:) = Job.FracMol2(i).*LastStable.MOLES(Idx4Frac,:);
+                        %
+                        FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*LastStable.MOLES(Idx4Frac,:);
+                    end
+                end
+            end
+            FractModel.RBC = FractModel.BC - FractModel.MBC;
+        end
+
     else                                                       % Metastable
         
         % ---------------------------------------------------------------------
         % Method 2 [Pattison; Affinity = delta_G(unreacted phases)]
-        
-        GminMeta = zeros(size(LastStable.Minerals));
-        GminMeta2 = zeros(size(LastStable.Minerals));
+
         GminMeta_SPEC = zeros(size(LastStable.Minerals));
 
-        NbMolesSyst_META_TEMP = zeros(length(LastStable.Minerals)-1,1);           % All stable "phases"
         NbMolesSyst_META_TEMP_SPEC = zeros(length(LastStable.Minerals)-1,1);      % Dominant phase (to trace problems)
-
-        DeltaMoles = zeros(length(LastStable.Minerals)-1,1);
-        DeltaMolesPer = zeros(length(LastStable.Minerals)-1,1);
-        DeltaG = zeros(length(LastStable.Minerals)-1,1);
-        DeltaGPer = zeros(length(LastStable.Minerals)-1,1);
 
         if Job.Print
             disp(' ')
@@ -300,87 +355,27 @@ for iStep = 1:size(Job.PT,1)
         end
 
         for i = 1:length(LastStable.Minerals)-1
-            
+
             TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,LastStable.MOLES(i,:));
-            
-            dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
-            dlmwrite('XBIN',char([Job.Database,'   ',LastStable.Minerals{i}],'no'),'delimiter','');
 
-            % disp(LastStable.Minerals{i})
+            % Add a function here (1.8) ---------------
+            [Output_GminMeta_SPEC,Output_NbMolesSyst_META_TEMP_SPEC,ChemMineral,EMF] = CalcGMetaPhase(TempBulk,Job,iStep,i,LastStable.Minerals{i},ChemMineral,EMF,'Method2');
 
-            if Job.Print
-                tic
-            end
-            
-            [wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+            NbMolesSyst_META_TEMP_SPEC(i) = Output_NbMolesSyst_META_TEMP_SPEC;
+            GminMeta_SPEC(i) = Output_GminMeta_SPEC;
 
-            [WorkVariMod_META] = Core_ReadResTheriak(yum,'');
-            
-            ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,'Method2');
-            EMF = BackupEMF(EMF,WorkVariMod_META,iStep,'Method2');
-            
-            GminMeta(i) = WorkVariMod_META.Gsys;        % Gsys of theriak in J.
-            GminMeta2(i) = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
-
-            if Job.Print
-                disp(' '), disp(' '), disp(' ')
-                toc
-                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
-            end
-
-            % Check minimzation results and recalculate NbMolesSyst (version 1.3 – Cavalaire 2023)
-            NbMolesTable = sum(WorkVariMod_META.MOLES,2);
-
-            [Val,IdxPhase] = max(NbMolesTable(1:end-1));
-
-            NbMolesSyst_META_TEMP_SPEC(i) = NbMolesTable(IdxPhase);
-            NbMolesSyst_META_TEMP(i) = NbMolesTable(end);
-            
-            DeltaMoles(i) = NbMolesSyst_META_TEMP(i)-NbMolesSyst_META_TEMP_SPEC(i);
-            DeltaMolesPer(i) = (NbMolesSyst_META_TEMP(i)-NbMolesSyst_META_TEMP_SPEC(i))/NbMolesSyst_META_TEMP(i)*100;
-
-            GminMeta_SPEC(i) = -sum(WorkVariMod_META.MOLES(IdxPhase,:) .* WorkVariMod_META.ChemPotEl);
-
-            DeltaG(i) = WorkVariMod_META.Gsys - GminMeta_SPEC(i);
-            DeltaGPer(i) = (WorkVariMod_META.Gsys - GminMeta_SPEC(i))/WorkVariMod_META.Gsys*100;
-            %WorkVariMod(1).ChemPotEl
-
-            if DeltaGPer(i) >= 0.001
-
-                PrintFatalError
-                
-                % Then we print this one:
-                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
-
-                fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
-                fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
-
-                % keyboard
-            end
-
-            if Job.Print
-                fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
-                fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC(i)),' J (shift = ',num2str(DeltaGPer(i)),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC(i)), ' moles (shift = ',num2str(DeltaMolesPer(i)),'%) = ',num2str(GminMeta_SPEC(i)/NbMolesSyst_META_TEMP_SPEC(i)),' J/mol'])
-                
-                %keyboard
-            end
-
-            if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 150    % was 10 then 15 then 50 and now 150... Nothing seems wrong...
-                disp('Oups, something went wrong as G metastable is incorrectly estimated, check details');
-                Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{i});
-                keyboard
-            end
         end
-        
+
         NbMolesSyst_META(iStep) = sum(NbMolesSyst_META_TEMP_SPEC);          % can be slighly Lower than sum(Gsys)/NbMolesSyst (see bellow)
-        
+
         GsytMeta(iStep) = sum(GminMeta_SPEC);                               % was sum(GminMeta) in 1.2
         GsysEqui(iStep) = WorkVariMod.Gsys;
 
         Affinity_Method2 = GsytMeta./NbMolesSyst_META -GsysEqui./NbMolesSyst_Equi;
 
-        
         if isequal(Job.Mode,1)
+            
+
             % ---------------------------------------------------------------------
             % Method 3 [Lanari; Affinity_Method3 = delta_G(reacted and unreacted phases)]
 
@@ -443,7 +438,6 @@ for iStep = 1:size(Job.PT,1)
         % Affinity_Method3 = MolesFracMeta * GFracMeta + (1-MolesFracMeta) * GFracEqui  -  G_Equi
 
         if isequal(Job.Mode,2)
-
             % ---------------------------------------------------------------------
             % Method 3.2 [Lanari; Affinity_Method3_2 = delta_G(reacted and unreacted phases)]
 
@@ -454,23 +448,9 @@ for iStep = 1:size(Job.PT,1)
                 tic
             end
 
-            BulkEquiPart = zeros(size(LastStable.MOLES(end,:)));
-
-            for i = 1:length(Job.EquiMin)
-                Idx4Frac = find(ismember(LastStable.Minerals,Job.EquiMin{i}));
-                if ~isempty(Idx4Frac)
-                    if length(Idx4Frac) > 1
-                        for j = 1:length(Idx4Frac)
-                            BulkEquiPart = BulkEquiPart + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac(j),:);
-                        end
-                    else
-                        BulkEquiPart = BulkEquiPart + Job.EquiMolFrac(i).*LastStable.MOLES(Idx4Frac,:);
-                    end
-                end
-            end
-
-            % Calculate GEquiPart
-            TempBulk = GenerateBulkForMetastablePhase(LastStable.Elem,BulkEquiPart);
+            
+            % [1] Calculate GEquiPart
+            TempBulk = GenerateBulkForMetastablePhase(FractModel.Elem,FractModel.RBC);   % FractModel is always up-to-date
 
             dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
             dlmwrite('XBIN',char(Job.Database,'no'),'delimiter','');
@@ -495,41 +475,90 @@ for iStep = 1:size(Job.PT,1)
             ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_GEquiPart,iStep,'Method3_2_EquiPart');
             EMF = BackupEMF(EMF,WorkVariMod_GEquiPart,iStep,'Method3_2_EquiPart');
 
-            % Calculate GMetaPart
+            % [2] Calculate GMetaPart
+
+            % Here we will need to recalculate GMetaPart because several
+            % minerals.
+
             GMetaPart = 0;
             NbMolesMeta = 0;
 
-            for i = 1:length(LastStable.Minerals)-1
-                Idx = find(ismember(Job.EquiMin,LastStable.Minerals{i}));
-                if isempty(Idx)
-                    GMetaPart = GMetaPart + GminMeta_SPEC(i);
-                    NbMolesMeta = NbMolesMeta + NbMolesSyst_META_TEMP_SPEC(i);
+            for i = 1:length(FractModel.Names)
+                TempBulk = GenerateBulkForMetastablePhase(FractModel.Elem,FractModel.CMP(i,:));
+
+                % Add a function here (1.8) ---------------
+                [Output_GminMeta_SPEC,Output_NbMolesSyst_META_TEMP_SPEC,ChemMineral,EMF] = CalcGMetaPhase(TempBulk,Job,iStep,i,FractModel.Names{i},ChemMineral,EMF,'Method3_2_MetaPart');
+
+                NbMolesMeta(i) = Output_NbMolesSyst_META_TEMP_SPEC;
+                GMetaPart(i) = Output_GminMeta_SPEC;
+
+                FractModel.G(i,iStep) = GMetaPart(i);
+                FractModel.NbMolesCheck(i,iStep) = NbMolesMeta(i);
+
+                % Temporary extract G_equi of mineral
+                Where = find(ismember(WorkVariMod.Names4Apfu,FractModel.Names{i}));
+                if ~isempty(Where)
+                    FractModel.G_equi(i,iStep) = GMinEqui(Where(1));  % Achtung does not handle demixion!
+                    FractModel.NbMoles_equi(i,iStep) = NbMolesEqui(Where(1));
                 else
-                    GMetaPart = GMetaPart + (1-Job.EquiMolFrac(Idx))*GminMeta_SPEC(i);
-                    NbMolesMeta = NbMolesMeta + (1-Job.EquiMolFrac(Idx))*NbMolesSyst_META_TEMP_SPEC(i);
+                    FractModel.G_equi(i,iStep) = 0;
+                    FractModel.NbMoles_equi(i,iStep) = 0;
                 end
             end
 
-            NbMolesTotalPart = NbMolesMeta+ WorkVariMod_GEquiPart.NbMolesSyst;
+            NbMolesTotalPart = sum(NbMolesMeta) + WorkVariMod_GEquiPart.NbMolesSyst;
 
-            mf_MolesFracMeta = NbMolesMeta/(NbMolesMeta+WorkVariMod_GEquiPart.NbMolesSyst);
+            mf_MolesFracMeta = sum(NbMolesMeta)/(sum(NbMolesMeta)+WorkVariMod_GEquiPart.NbMolesSyst);
             
-            GTotalPart(iStep) = mf_MolesFracMeta*(GMetaPart/NbMolesMeta) + (1-mf_MolesFracMeta)*(GEquiPart/WorkVariMod_GEquiPart.NbMolesSyst);
+            GTotalPart(iStep) = mf_MolesFracMeta*(sum(GMetaPart)/sum(NbMolesMeta)) + (1-mf_MolesFracMeta)*(GEquiPart/WorkVariMod_GEquiPart.NbMolesSyst); % renormalize the J.mol
 
             Affinity_Method3_2 = GTotalPart- GsysEqui./NbMolesSyst_Equi;        % in J.mol-1
-            
-            % mf_MolesFracMeta = MolesFracMeta/(MolesFracMeta+NbMolesFracSyst);
-            % G_MetaPar = mf_MolesFracMeta*(GFracMeta/MolesFracMeta) + (1-mf_MolesFracMeta)*(GFracEqui/NbMolesFracSyst);
 
-            %GTotalPart(iStep) = GEquiPart+GMetaPart;
 
-            %Affinity_Method3_2 = (GTotalPart-GsysEqui)./NbMolesSyst_Equi;        % in J.mol-1
-            
+            if isequal(Job.KeepFrac,1)
+                % Add fractionation (version 1.8)
+                ThresholdMolFrac = 0.01;
+                
+                Minerals = WorkVariMod_GEquiPart.Names4Moles;
+                disp(' ')
+                disp('Fractionation:')
+                for i = 1:length(Job.FracMin2)
+                    Idx4Frac = find(ismember(Minerals,Job.FracMin2{i}));
+                    if ~isempty(Idx4Frac)
+                        if length(Idx4Frac) > 1              % this is to handle demixion
+                            for j = 1:length(Idx4Frac)
+                                if sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:))/sum(LastStable.MOLES(end,:)) > ThresholdMolFrac
+                                    FractModel.Names{end+1} = Minerals{Idx4Frac(j)};
+                                    FractModel.CMP(end+1,:) = Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:);
+                                    %
+                                    FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:);
+                                    disp(['- Added ',Minerals{Idx4Frac(j)}])
+                                else
+                                    disp(['- Skipped ',Minerals{Idx4Frac(j)},' (',num2str(sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac(j),:))/sum(LastStable.MOLES(end,:))),')'])
+                                end
+                            end
+                        else
+                            if sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac,:))/sum(LastStable.MOLES(end,:)) > ThresholdMolFrac
+                                ComptFract = ComptFract + 1;
+                                FractModel.Names{end+1} = Minerals{Idx4Frac};
+                                FractModel.CMP(end+1,:) = Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac,:);
+                                %
+                                FractModel.MBC = FractModel.MBC + Job.FracMol2(i).*WorkVariMod_GEquiPart.MOLES(Idx4Frac,:);
+                                disp(['- Added ',Minerals{Idx4Frac}])
+                            else
+                                disp(['- Skipped ',Minerals{Idx4Frac},' (',num2str(sum(WorkVariMod_GEquiPart.MOLES(Idx4Frac,:))/sum(LastStable.MOLES(end,:))),')'])
+                            end
+                        end
+                    end
+                end
+                FractModel.RBC = FractModel.BC - FractModel.MBC;
+            end
+
         end
     end
 
     if Job.Pause
-        keyboard
+        keyboard 
     end
 
 
@@ -733,32 +762,11 @@ if isequal(Job.Mode,1)
 
 else
     
-%     nexttile
-%     plot(Affinity_Method3_2,'o-k')
-%     xlabel('T (°C)')
-%     ylabel('A (J/mol)')
-%     title('A = -\DeltaG_p_a_r_t_i_a_l | Method 3.2 (J/mol)')
-% 
-%     ax = gca;
-%     ax.YLim(1) = 0;
-%     ax.YLim(2) = LimYaxis;
-% 
-%     for i = 1:length(ax.XTick)
-%         if ax.XTick(i) > 0 && ax.XTick(i) < size(Job.PT,1)
-%             ax.XTickLabel{i} = num2str(Job.PT(ax.XTick(i),1));
-%         else
-%             ax.XTickLabel{i} = '';
-%         end
-%     end
-% 
-%     ax.XTickMode = 'manual';
-
     ax2 = nexttile; hold on
     plot(Affinity_Method3_2,'o-k')
-    plot(Affinity_Method2,'o-b')
     xlabel('T (°C)')
     ylabel('A (J/mol)')
-    title('Affinity (J/mol)')
+    title('Affinity Method 3.2 (J/mol)')
 
     %ax2 = gca;
     ax2.YLim(1) = 0;
@@ -773,8 +781,30 @@ else
             ax2.XTickLabel{i} = '';
         end
     end
-
     ax2.XTickMode = 'manual';
+
+
+    ax3 = nexttile; hold on
+    plot(Affinity_Method3_2,'o-k')
+    plot(Affinity_Method2,'o-b')
+    xlabel('T (°C)')
+    ylabel('A (J/mol)')
+    title('Affinity (J/mol)')
+
+    %ax2 = gca;
+    ax3.YLim(1) = 0;
+    ax3.YLim(2) = LimYaxis;
+
+    ax3.XTick = ax.XTick;
+
+    for i = 1:length(ax2.XTick)
+        if ax3.XTick(i) > 0 && ax2.XTick(i) < size(Job.PT,1)
+            ax3.XTickLabel{i} = num2str(Job.PT(ax2.XTick(i),1));
+        else
+            ax3.XTickLabel{i} = '';
+        end
+    end
+    ax3.XTickMode = 'manual';
 
 end
 
@@ -814,12 +844,101 @@ if Job.SaveOutput
         save('LastResults/AffinityData.mat','AffinityData');
     end
 
+    if isequal(Job.Mode,2)
+        AffinityData.Labels = {'Temperature (°C)','Pressure (GPa)','Reactivity',Affinity_Method2','Affinity_Method3.2'};
+        AffinityData.Data = [Job.PT,Affinity_Method2',Affinity_Method3_2'];
+        save('LastResults/AffinityData.mat','AffinityData');
+    end
+
+end
+
+% Cleaning: 
+delete(fullfile(cd,'OUT'));
+delete(fullfile(cd,'theriak.last'));
+delete(fullfile(cd,'XBIN'));
+
+disp(' ')
+% keyboard
+
+
 end
 
 
+function [GminMeta_SPEC,NbMolesSyst_META_TEMP_SPEC,ChemMineral,EMF] = CalcGMetaPhase(TempBulk,Job,iStep,iMin,SolName,ChemMineral,EMF,Method)
+%
+% Introduced in 1.8 (Syros 21.05.23)
 
-disp(' ')
-keyboard
+
+dlmwrite('THERIN',char( ['    ',char(num2str(Job.PT(iStep,1))),'     ',char(num2str(Job.PT(iStep,2)))],['1    ',TempBulk,'   * '] ),'delimiter','');
+dlmwrite('XBIN',char([Job.Database,'   ',SolName],'no'),'delimiter','');
+
+if Job.Print
+    tic
+end
+
+[wum,yum]=system([Job.PathTher,'   XBIN   THERIN']);
+
+[WorkVariMod_META] = Core_ReadResTheriak(yum,'');
+
+if ~isequal(Method,'NONE')
+    ChemMineral = BackupMinComp(ChemMineral,WorkVariMod_META,iStep,Method);
+    EMF = BackupEMF(EMF,WorkVariMod_META,iStep,Method);
+end
+
+GminMeta = WorkVariMod_META.Gsys;        % Gsys of theriak in J.
+GminMeta2 = WorkVariMod_META.Gsys2;      % Recalculated from the chemical potential of the elements
+
+if Job.Print
+    disp(' '), disp(' '), disp(' ')
+    toc
+    Print_Results(WorkVariMod_META,TempBulk,SolName);
+end
+
+% Check minimzation results and recalculate NbMolesSyst (version 1.3 – Cavalaire 2023)
+NbMolesTable = sum(WorkVariMod_META.MOLES,2);
+
+[Val,IdxPhase] = max(NbMolesTable(1:end-1));
+
+NbMolesSyst_META_TEMP_SPEC = NbMolesTable(IdxPhase);
+NbMolesSyst_META_TEMP = NbMolesTable(end);
+
+DeltaMoles = NbMolesSyst_META_TEMP-NbMolesSyst_META_TEMP_SPEC;
+DeltaMolesPer = (NbMolesSyst_META_TEMP-NbMolesSyst_META_TEMP_SPEC)/NbMolesSyst_META_TEMP*100;
+
+GminMeta_SPEC = -sum(WorkVariMod_META.MOLES(IdxPhase,:) .* WorkVariMod_META.ChemPotEl);
+
+DeltaG = WorkVariMod_META.Gsys - GminMeta_SPEC;
+DeltaGPer = (WorkVariMod_META.Gsys - GminMeta_SPEC)/WorkVariMod_META.Gsys*100;
+
+if DeltaGPer >= 0.001
+
+    PrintFatalError
+
+    % Then we print this one:
+    Print_Results(WorkVariMod_META,TempBulk,SolName);
+
+    fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
+    fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC),' J (shift = ',num2str(DeltaGPer),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC), ' moles (shift = ',num2str(DeltaMolesPer),'%) = ',num2str(GminMeta_SPEC/NbMolesSyst_META_TEMP_SPEC),' J/mol'])
+
+    % keyboard
+end
+
+if Job.Print
+    fprintf('%s\n','...... Check of Gphase calculation for errors in the minimization of complex solutions:')
+    fprintf('%s\n',['Gsys = ',num2str(GminMeta_SPEC),' J (shift = ',num2str(DeltaGPer),'%) for ',num2str(NbMolesSyst_META_TEMP_SPEC), ' moles (shift = ',num2str(DeltaMolesPer),'%) = ',num2str(GminMeta_SPEC/NbMolesSyst_META_TEMP_SPEC),' J/mol'])
+
+    %keyboard
+end
+
+if abs(-WorkVariMod_META.Gsys-WorkVariMod_META.Gsys2) > 150 % e12    % was 10 then 15 then 50 and now 150... Nothing seems wrong...
+    disp('Oups, something went wrong as G metastable is incorrectly estimated, check details');
+    Print_Results(WorkVariMod_META,TempBulk,LastStable.Minerals{iMin});
+    disp(' ')
+    disp(' ')
+    disp(' --> The program is paused because of a single-phase minimisation failure but you can continue...')
+    keyboard
+end
+
 
 
 end
@@ -858,7 +977,7 @@ for i = 1:length(WorkVariMod.Names4Apfu)
     end
 end
 
-fprintf('\n%s',['Assemblage (',Mode,'): [',num2str(WorkVariMod.NbMolesSyst,3),' mol] ',MinAsmText]);
+fprintf('%s\n',['Assemblage (',Mode,'): [',num2str(WorkVariMod.NbMolesSyst,3),' mol] ',MinAsmText]);
 end
 
 
@@ -1532,16 +1651,25 @@ TheL = fgetl(fid);  % ------ Options (2)
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
-NbInput = length(TheS{1})-1;
-for i = 1:NbInput
-    Job.EquiMin{i} = char(TheS{1}(1+i));
+switch char(TheS{1}(2))
+    case 'ON'
+        Job.KeepFrac = 1;
+    case 'OFF'
+        Job.KeepFrac = 0;
 end
 
 TheL = fgetl(fid);
 TheS = textscan(TheL,'%s');
 NbInput = length(TheS{1})-1;
 for i = 1:NbInput
-    Job.EquiMolFrac(i) = str2num(char(TheS{1}(1+i)));
+    Job.FracMin2{i} = char(TheS{1}(1+i));
+end
+
+TheL = fgetl(fid);
+TheS = textscan(TheL,'%s');
+NbInput = length(TheS{1})-1;
+for i = 1:NbInput
+    Job.FracMol2(i) = str2num(char(TheS{1}(1+i)));
 end
 
 TheL = fgetl(fid);  % -----------------------
